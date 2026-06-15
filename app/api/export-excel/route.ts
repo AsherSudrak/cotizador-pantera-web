@@ -18,63 +18,171 @@ function safeName(value: string) {
     .slice(0, 60);
 }
 
+function setThinBorders(cell: ExcelJS.Cell) {
+  cell.border = {
+    top: { style: "thin", color: { argb: "FF000000" } },
+    left: { style: "thin", color: { argb: "FF000000" } },
+    bottom: { style: "thin", color: { argb: "FF000000" } },
+    right: { style: "thin", color: { argb: "FF000000" } }
+  };
+}
+
+function styleRangeBorders(ws: ExcelJS.Worksheet, fromRow: number, toRow: number, fromCol = 1, toCol = 5) {
+  for (let r = fromRow; r <= toRow; r++) {
+    for (let c = fromCol; c <= toCol; c++) {
+      setThinBorders(ws.getCell(r, c));
+    }
+  }
+}
+
 function styleHeader(row: ExcelJS.Row) {
-  row.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF303238" } };
-  row.alignment = { vertical: "middle", horizontal: "center" };
+  row.height = 18;
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FF000000" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9D9D9" } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    setThinBorders(cell);
+  });
 }
 
-function styleSection(row: ExcelJS.Row) {
-  row.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2232A" } };
+function styleTotal(row: ExcelJS.Row, red = false) {
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: red ? "FFFFFFFF" : "FF000000" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: red ? "FFC00000" : "FFD9D9D9" }
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    setThinBorders(cell);
+  });
 }
 
-function styleSubtotal(row: ExcelJS.Row) {
-  row.font = { bold: true };
-  row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3BF" } };
+function putHeader(ws: ExcelJS.Worksheet, rowNumber: number, title: string) {
+  const row = ws.getRow(rowNumber);
+  row.getCell(1).value = "CANT.";
+  row.getCell(2).value = "UNIDAD";
+  row.getCell(3).value = title;
+  row.getCell(4).value = "COSTO";
+  row.getCell(5).value = "PRECIO";
+  styleHeader(row);
+}
+
+function putLine(ws: ExcelJS.Worksheet, rowNumber: number, line: any) {
+  const row = ws.getRow(rowNumber);
+  row.getCell(1).value = Number(line.quantity || 0);
+  row.getCell(2).value = line.unit || "";
+  row.getCell(3).value = line.item_name || "";
+  row.getCell(4).value = Number(line.unit_cost || 0);
+  row.getCell(5).value = { formula: `A${rowNumber}*D${rowNumber}` };
+
+  row.getCell(4).numFmt = moneyFormat();
+  row.getCell(5).numFmt = moneyFormat();
+
+  row.getCell(3).alignment = { wrapText: true, vertical: "middle" };
+  row.getCell(1).alignment = { horizontal: "center" };
+  row.getCell(2).alignment = { horizontal: "center" };
+
+  for (let c = 1; c <= 5; c++) {
+    setThinBorders(row.getCell(c));
+  }
+}
+
+function putBlankLine(ws: ExcelJS.Worksheet, rowNumber: number) {
+  const row = ws.getRow(rowNumber);
+  row.getCell(5).value = { formula: `A${rowNumber}*D${rowNumber}` };
+  row.getCell(4).numFmt = moneyFormat();
+  row.getCell(5).numFmt = moneyFormat();
+  for (let c = 1; c <= 5; c++) {
+    setThinBorders(row.getCell(c));
+  }
 }
 
 function addSection(
   ws: ExcelJS.Worksheet,
+  startRow: number,
   title: string,
   lines: any[],
-  subtotal: number,
-  startRow: number
+  minRows: number
 ) {
-  let rowIndex = startRow;
+  putHeader(ws, startRow, title);
 
-  ws.mergeCells(rowIndex, 1, rowIndex, 5);
-  const sectionRow = ws.getRow(rowIndex);
-  sectionRow.getCell(1).value = title;
-  styleSection(sectionRow);
-  rowIndex++;
+  const bodyStart = startRow + 1;
+  const bodyRows = Math.max(minRows, lines.length);
 
-  const header = ws.getRow(rowIndex);
-  header.values = ["CANT.", "UNIDAD", "CONCEPTO", "COSTO UNIT.", "TOTAL"];
-  styleHeader(header);
-  rowIndex++;
-
-  for (const line of lines) {
-    const row = ws.getRow(rowIndex);
-    row.values = [
-      Number(line.quantity || 0),
-      line.unit || "",
-      line.item_name || "",
-      Number(line.unit_cost || 0),
-      Number(line.total_cost || 0)
-    ];
-    row.getCell(4).numFmt = moneyFormat();
-    row.getCell(5).numFmt = moneyFormat();
-    rowIndex++;
+  for (let i = 0; i < bodyRows; i++) {
+    const rowNumber = bodyStart + i;
+    if (i < lines.length) putLine(ws, rowNumber, lines[i]);
+    else putBlankLine(ws, rowNumber);
   }
 
-  const subtotalRow = ws.getRow(rowIndex);
-  subtotalRow.values = ["", "", `SUBTOTAL ${title}`, "", Number(subtotal || 0)];
-  subtotalRow.getCell(5).numFmt = moneyFormat();
-  styleSubtotal(subtotalRow);
-  rowIndex += 2;
+  return {
+    bodyStart,
+    bodyEnd: bodyStart + bodyRows - 1,
+    nextRow: bodyStart + bodyRows
+  };
+}
 
-  return rowIndex;
+function addMaterialsTotals(ws: ExcelJS.Worksheet, row: number, bodyStart: number, bodyEnd: number) {
+  const subtotalRow = ws.getRow(row);
+  subtotalRow.getCell(4).value = "SUBTOTAL";
+  subtotalRow.getCell(5).value = { formula: `SUM(E${bodyStart}:E${bodyEnd})` };
+  subtotalRow.getCell(5).numFmt = moneyFormat();
+  styleTotal(subtotalRow, false);
+
+  const ivaRow = ws.getRow(row + 1);
+  ivaRow.getCell(4).value = "TOTAL IVA";
+  ivaRow.getCell(5).value = { formula: `E${row}*0.16` };
+  ivaRow.getCell(5).numFmt = moneyFormat();
+  styleTotal(ivaRow, false);
+
+  const totalRow = ws.getRow(row + 2);
+  totalRow.getCell(4).value = "TOTAL MAT";
+  totalRow.getCell(5).value = { formula: `E${row}+E${row + 1}` };
+  totalRow.getCell(5).numFmt = moneyFormat();
+  styleTotal(totalRow, true);
+
+  return row + 3;
+}
+
+function addSimpleTotal(ws: ExcelJS.Worksheet, row: number, label: string, bodyStart: number, bodyEnd: number) {
+  const totalRow = ws.getRow(row);
+  totalRow.getCell(4).value = label;
+  totalRow.getCell(5).value = { formula: `SUM(E${bodyStart}:E${bodyEnd})` };
+  totalRow.getCell(5).numFmt = moneyFormat();
+  styleTotal(totalRow, true);
+  return row + 1;
+}
+
+function addFinalSummary(
+  ws: ExcelJS.Worksheet,
+  startRow: number,
+  materialTotalRow: number,
+  moTotalRow: number,
+  ventaTotalRow: number
+) {
+  const labels = [
+    "SUB-TOTAL. MAT-MO",
+    "UTILIDAD",
+    "GASTOS INDIRECTOS",
+    "TOTAL PRECIO VENTA",
+    "TOTAL"
+  ];
+
+  for (let i = 0; i < labels.length; i++) {
+    const r = startRow + i;
+    const row = ws.getRow(r);
+    row.getCell(4).value = labels[i];
+
+    if (i === 0) row.getCell(5).value = { formula: `E${materialTotalRow}+E${moTotalRow}` };
+    if (i === 1) row.getCell(5).value = { formula: `E${startRow}*0.4` };
+    if (i === 2) row.getCell(5).value = { formula: `E${startRow}*0.4` };
+    if (i === 3) row.getCell(5).value = { formula: `E${ventaTotalRow}` };
+    if (i === 4) row.getCell(5).value = { formula: `SUM(E${startRow}:E${startRow + 3})` };
+
+    row.getCell(5).numFmt = moneyFormat();
+    styleTotal(row, i === 4);
+  }
 }
 
 export async function POST(req: Request) {
@@ -92,93 +200,89 @@ export async function POST(req: Request) {
     const input = QuoteInputSchema.parse(json);
     const quote = await calculateQuote(input);
 
+    const materials = quote.grouped_lines.materials || [];
+    const labor = quote.grouped_lines.labor || [];
+    const saleServices = quote.grouped_lines.sale_services || [];
+
     const wb = new ExcelJS.Workbook();
     wb.creator = "Cotizador Pantera";
     wb.created = new Date();
 
-    const ws = wb.addWorksheet("DESGLOSE");
-
-    ws.columns = [
-      { header: "", key: "cantidad", width: 14 },
-      { header: "", key: "unidad", width: 18 },
-      { header: "", key: "concepto", width: 62 },
-      { header: "", key: "costo_unit", width: 16 },
-      { header: "", key: "total", width: 16 }
-    ];
-
-    ws.mergeCells("A1:E1");
-    ws.getCell("A1").value = "PANTERA PUBLICIDAD · DESGLOSE INTERNO DE COTIZACIÓN";
-    ws.getCell("A1").font = { bold: true, color: { argb: "FFFFFFFF" }, size: 14 };
-    ws.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF202124" } };
-    ws.getCell("A1").alignment = { horizontal: "center" };
-
-    ws.getCell("A3").value = "Cliente";
-    ws.getCell("B3").value = input.client_name;
-    ws.getCell("A4").value = "Vendedor";
-    ws.getCell("B4").value = input.seller_name || "";
-    ws.getCell("A5").value = "Tipo de caja";
-    ws.getCell("B5").value = input.box_type;
-    ws.getCell("A6").value = "Medidas";
-    ws.getCell("B6").value = `${input.width_m} x ${input.height_m} m · fondo ${input.depth_cm} cm · ${input.views} vista(s)`;
-    ws.getCell("A7").value = "Carátula";
-    ws.getCell("B7").value = input.face_material;
-    ws.getCell("A8").value = "Canto";
-    ws.getCell("B8").value = input.canto || "";
-    ws.getCell("A9").value = "Concepto";
-    ws.getCell("B9").value = quote.description;
-
-    for (let r = 3; r <= 9; r++) ws.getCell(`A${r}`).font = { bold: true };
-    ws.getCell("B9").alignment = { wrapText: true, vertical: "top" };
-
-    let row = 11;
-    row = addSection(ws, "MATERIALES", quote.grouped_lines.materials || [], quote.section_totals.materials || 0, row);
-    row = addSection(ws, "MANO DE OBRA", quote.grouped_lines.labor || [], quote.section_totals.labor || 0, row);
-    row = addSection(ws, "PRECIOS VENTA", quote.grouped_lines.sale_services || [], quote.section_totals.sale_services || 0, row);
-
-    ws.mergeCells(row, 1, row, 5);
-    const summaryTitle = ws.getRow(row);
-    summaryTitle.getCell(1).value = "RESUMEN FINANCIERO";
-    styleSection(summaryTitle);
-    row++;
-
-    const summaryRows = [
-      ["Subtotal materiales", quote.section_totals.materials],
-      ["Subtotal mano de obra", quote.section_totals.labor],
-      ["Subtotal precios venta", quote.section_totals.sale_services],
-      ["Costo directo", quote.totals.direct_cost],
-      ["Gastos indirectos", quote.totals.indirect_cost],
-      ["Costo total", quote.totals.total_cost],
-      ["Utilidad", quote.totals.utility],
-      ["Precio a cotizar sin IVA", quote.totals.subtotal_without_iva],
-      ["IVA", quote.totals.iva],
-      ["Total final con IVA", quote.totals.total_with_iva],
-      ["Margen real", `${quote.totals.real_margin.toFixed(2)}%`],
-      ["Margen mínimo obligatorio", `${quote.totals.minimum_margin.toFixed(2)}%`],
-      ["Estado", quote.totals.margin_validated ? "VALIDADO · UTILIDAD REAL ≥ 40%" : "NO VALIDADO"]
-    ];
-
-    for (const [label, value] of summaryRows) {
-      const r = ws.getRow(row);
-      r.getCell(3).value = label as string;
-      r.getCell(5).value = value as any;
-      r.getCell(3).font = { bold: true };
-      if (typeof value === "number") r.getCell(5).numFmt = moneyFormat();
-      row++;
-    }
-
-    ws.eachRow((r) => {
-      r.eachCell((cell) => {
-        cell.border = {
-          top: { style: "thin", color: { argb: "FF808080" } },
-          left: { style: "thin", color: { argb: "FF808080" } },
-          bottom: { style: "thin", color: { argb: "FF808080" } },
-          right: { style: "thin", color: { argb: "FF808080" } }
-        };
-      });
+    const ws = wb.addWorksheet("Hoja1", {
+      pageSetup: {
+        paperSize: 9,
+        orientation: "portrait",
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0
+      }
     });
 
+    ws.columns = [
+      { key: "cantidad", width: 10 },
+      { key: "unidad", width: 12 },
+      { key: "concepto", width: 54 },
+      { key: "costo", width: 14 },
+      { key: "precio", width: 14 }
+    ];
+
+    ws.views = [{ state: "frozen", ySplit: 3 }];
+
+    ws.getRow(1).height = 10;
+    ws.getRow(2).height = 10;
+
+    const mat = addSection(ws, 3, "MATERIALES", materials, 31);
+    const afterMatTotals = addMaterialsTotals(ws, mat.nextRow, mat.bodyStart, mat.bodyEnd);
+    const materialTotalRow = afterMatTotals - 1;
+
+    const moHeaderRow = afterMatTotals + 1;
+    const mo = addSection(ws, moHeaderRow, "MANO DE OBRA", labor, 4);
+    const afterMoTotal = addSimpleTotal(ws, mo.nextRow, "TOTAL MO", mo.bodyStart, mo.bodyEnd);
+    const moTotalRow = afterMoTotal - 1;
+
+    const pvHeaderRow = afterMoTotal + 1;
+    const pv = addSection(ws, pvHeaderRow, "PRECIOS VENTA", saleServices, 2);
+    const afterPvTotal = addSimpleTotal(ws, pv.nextRow, "TOTAL VEN", pv.bodyStart, pv.bodyEnd);
+    const ventaTotalRow = afterPvTotal - 1;
+
+    const summaryRow = afterPvTotal + 1;
+    addFinalSummary(ws, summaryRow, materialTotalRow, moTotalRow, ventaTotalRow);
+
+    // Formato general tipo calculadora.
+    ws.getColumn(1).alignment = { horizontal: "center" };
+    ws.getColumn(2).alignment = { horizontal: "center" };
+    ws.getColumn(3).alignment = { wrapText: true };
+    ws.getColumn(4).numFmt = moneyFormat();
+    ws.getColumn(5).numFmt = moneyFormat();
+
+    // Altura compacta y visual semejante al formato base.
+    for (let r = 1; r <= summaryRow + 5; r++) {
+      ws.getRow(r).height = 18;
+    }
+
+    // Datos de referencia ocultos a la derecha para no alterar el formato visible.
+    ws.getColumn(7).hidden = true;
+    ws.getColumn(8).hidden = true;
+    ws.getColumn(7).values = [
+      "",
+      "Cliente",
+      input.client_name,
+      "Vendedor",
+      input.seller_name || "",
+      "Tipo de caja",
+      input.box_type,
+      "Medidas",
+      `${input.width_m} x ${input.height_m} m · fondo ${input.depth_cm} cm · ${input.views} vista(s)`,
+      "Carátula",
+      input.face_material,
+      "Canto",
+      input.canto || "",
+      "Concepto",
+      quote.description
+    ];
+
+    const filename = `formato-calculadora-${safeName(input.client_name)}.xlsx`;
     const buffer = await wb.xlsx.writeBuffer();
-    const filename = `desglose-${safeName(input.client_name)}.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,
@@ -191,7 +295,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: "No se pudo exportar el desglose a Excel.",
+        message: "No se pudo exportar el formato de calculadora.",
         details: error.message || String(error)
       },
       { status: 500 }
