@@ -164,7 +164,6 @@ export default function HomePage() {
       vinyl_ml: showCutVinyl ? form.vinyl_ml : 0,
       vinyl_color: showCutVinyl ? form.vinyl_color : "",
       vinyl_custom_color: showCutVinyl ? form.vinyl_custom_color || "" : "",
-        vinyl_custom_color: showCutVinyl ? form.vinyl_custom_color || "" : "",
       backlight_print_service: showBacklightPrint ? BACKLIGHT_PRINT_HP : ""
     };
   }
