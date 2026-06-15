@@ -31,6 +31,9 @@ export const QuoteInputSchema = z.object({
   design_service: z.string().default("15MIN. DE DISEÑO GRAFICO"),
   backlight_print_service: z.string().optional().default(""),
   cut_vinyl: z.string().optional().default(""),
+  vinyl_ml: z.coerce.number().nonnegative().default(0),
+  vinyl_color: z.string().optional().default(""),
+  vinyl_custom_color: z.string().optional().default(""),
   commission: z.coerce.number().min(0).max(.30).default(0),
   discount: z.coerce.number().min(0).max(.90).default(0)
 });
@@ -91,6 +94,12 @@ const FALLBACK_COSTS: Record<string, { unit: string; cost: number; sale?: number
   "ESTOPA": { unit: "kg", cost: 50 },
   "LONA BACK LIGHT 2.00 x 50": { unit: "m2", cost: 23.99 },
   "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB": { unit: "ML", cost: 31.03 },
+  "VINIL DE CORTE CON BASE 1.22 MTS CORTE AMPLIO": { unit: "ML", cost: 885, sale: 885 },
+  "VINIL DE CORTE CON BASE 1.22 MTS CORTE DETALLADO": { unit: "ML", cost: 1150, sale: 1150 },
+  "VINIL DE CORTE CON BASE 1.22 MTS CORTE SUPER DETALLADO": { unit: "ML", cost: 1450, sale: 1450 },
+  "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO": { unit: "ML", cost: 545, sale: 545 },
+  "VINIL DE CORTE CON BASE 60 CMS CORTE DETALLADO": { unit: "ML", cost: 680, sale: 680 },
+  "VINIL DE CORTE CON BASE 60 CMS CORTE SUPER DETALLADO": { unit: "ML", cost: 965, sale: 965 },
   "TRANSFER DE .61": { unit: "SER", cost: 11.21 },
   "LAMPARA DE LEDS 16 WATS": { unit: "PIEZA", cost: 41.81 },
   "BASES P/LAMPARA DE PICOS T8": { unit: "PIEZA", cost: 17 },
@@ -287,6 +296,12 @@ function calculateBaseValues(input: QuoteInput) {
 }
 
 function itemNameFromRecipe(recipe: RecipeRow, input: QuoteInput) {
+  const recipeItem = normalize(recipe.item_name);
+
+  if (recipeItem.includes("VINIL DE CORTE") && input.cut_vinyl) {
+    return input.cut_vinyl;
+  }
+
   if (recipe.formula_type === "design_service") {
     return input.design_service;
   }
@@ -307,6 +322,17 @@ function itemNameFromRecipe(recipe: RecipeRow, input: QuoteInput) {
 }
 
 function quantityFromRecipe(recipe: RecipeRow, input: QuoteInput) {
+  const selectedItemName = itemNameFromRecipe(recipe, input);
+  const selectedVinylMl = Number(input.vinyl_ml || 0);
+
+  if (selectedVinylMl > 0 && normalize(selectedItemName).includes("VINIL DE CORTE")) {
+    return round2(selectedVinylMl);
+  }
+
+  if (selectedVinylMl > 0 && normalize(selectedItemName).includes("TRANSFER")) {
+    return round2(selectedVinylMl);
+  }
+
   const factor = Number(recipe.factor || 1);
   const minQty = Number(recipe.min_qty || 0);
   const maxQty = recipe.max_qty === null || recipe.max_qty === undefined ? null : Number(recipe.max_qty);
@@ -421,6 +447,20 @@ function forcedUnitCostForRecipe(recipe: RecipeRow, input: QuoteInput) {
   return undefined;
 }
 
+
+function selectedVinylColor(input: QuoteInput) {
+  const color = (input.vinyl_color || "").trim().toUpperCase();
+  const custom = (input.vinyl_custom_color || "").trim().toUpperCase();
+
+  if (color === "OTRO" && custom) return custom;
+  return color || "";
+}
+
+function isVinylItem(itemName: string) {
+  const name = normalize(itemName);
+  return name.includes("VINIL DE CORTE");
+}
+
 export async function calculateQuote(input: QuoteInput) {
   const catalog = await loadCatalog();
   const recipes = await loadRecipes();
@@ -437,7 +477,7 @@ export async function calculateQuote(input: QuoteInput) {
       recipe.formula_type === "design_service" ||
       recipe.formula_type === "transfer_zone";
 
-    return makeLine(
+    const line = makeLine(
       catalog,
       recipe.section,
       itemName,
@@ -446,6 +486,13 @@ export async function calculateQuote(input: QuoteInput) {
       visibleToClient,
       forcedUnitCost
     );
+
+    const color = selectedVinylColor(input);
+    if (color && isVinylItem(itemName)) {
+      line.item_name = `${line.item_name} · COLOR ${color}`;
+    }
+
+    return line;
   });
 
   const lines = cleanLines(rawLines);
@@ -489,7 +536,7 @@ export async function calculateQuote(input: QuoteInput) {
           ? `IMPRESIÓN: ${HP_BACKLIGHT_PRINT}. `
           : ""
       }` +
-      `${isBacklightRotulada(input) ? `ROTULADO: ${input.cut_vinyl}. ` : ""}` +
+      `${isBacklightRotulada(input) ? `ROTULADO: ${input.cut_vinyl}${selectedVinylColor(input) ? ` · COLOR ${selectedVinylColor(input)}` : ""}${input.vinyl_ml ? ` · ${input.vinyl_ml} ML` : ""}. ` : ""}` +
       `ILUMINACIÓN: ${input.lighting_type}. ` +
       `${
         input.installation_included

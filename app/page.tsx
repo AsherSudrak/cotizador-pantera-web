@@ -38,6 +38,21 @@ const VINYL_OPTIONS = [
   "VINIL DE CORTE CON BASE 60 CMS CORTE SUPER DETALLADO"
 ];
 
+const VINYL_COLOR_OPTIONS = [
+  "NEGRO",
+  "BLANCO",
+  "ROJO",
+  "AZUL",
+  "AMARILLO",
+  "VERDE",
+  "GRIS",
+  "DORADO",
+  "PLATA",
+  "NARANJA",
+  "MORADO",
+  "OTRO"
+];
+
 const defaultForm = {
   client_name: "CLIENTE NUEVO",
   seller_name: "",
@@ -57,6 +72,7 @@ const defaultForm = {
   backlight_print_service: BACKLIGHT_PRINT_HP,
   cut_vinyl: "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
   vinyl_ml: 1,
+  vinyl_color: "NEGRO",
   commission: 0,
   discount: 0
 };
@@ -146,6 +162,9 @@ export default function HomePage() {
       access_key: accessKey,
       cut_vinyl: showCutVinyl ? form.cut_vinyl : "",
       vinyl_ml: showCutVinyl ? form.vinyl_ml : 0,
+      vinyl_color: showCutVinyl ? form.vinyl_color : "",
+      vinyl_custom_color: showCutVinyl ? form.vinyl_custom_color || "" : "",
+        vinyl_custom_color: showCutVinyl ? form.vinyl_custom_color || "" : "",
       backlight_print_service: showBacklightPrint ? BACKLIGHT_PRINT_HP : ""
     };
   }
@@ -276,6 +295,15 @@ export default function HomePage() {
                     <label>ML de vinil</label>
                     <input type="number" step="0.01" min="0" value={form.vinyl_ml} onChange={(e) => setForm({ ...form, vinyl_ml: Number(e.target.value) })} placeholder="Ej. 2.50" />
                   </div>
+
+                  <Select label="Color de vinil" value={form.vinyl_color} onChange={(v) => setForm({ ...form, vinyl_color: v })} options={VINYL_COLOR_OPTIONS} />
+
+                  {form.vinyl_color === "OTRO" && (
+                    <div className="row">
+                      <label>Color personalizado</label>
+                      <input value={form.vinyl_custom_color || ""} onChange={(e) => setForm({ ...form, vinyl_custom_color: e.target.value.toUpperCase() })} placeholder="Ej. ROSA, TURQUESA, CAFÉ" />
+                    </div>
+                  )}
                 </>
               )}
               <div className="row">
