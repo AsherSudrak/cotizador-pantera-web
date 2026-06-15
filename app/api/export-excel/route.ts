@@ -202,7 +202,7 @@ export async function POST(req: Request) {
 
     const materials = quote.grouped_lines.materials || [];
     const labor = quote.grouped_lines.labor || [];
-    const saleServices = quote.grouped_lines.sale_services || [];
+    const saleServices = [ ...(quote.grouped_lines.sale_services || []), ...(quote.grouped_lines.extras || []) ];
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "Cotizador Pantera";

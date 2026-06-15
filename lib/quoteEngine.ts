@@ -34,6 +34,18 @@ export const QuoteInputSchema = z.object({
   vinyl_ml: z.coerce.number().nonnegative().default(0),
   vinyl_color: z.string().optional().default(""),
   vinyl_custom_color: z.string().optional().default(""),
+  vinyl_items: z.array(z.object({
+    vinyl_type: z.string().optional().default(""),
+    ml: z.coerce.number().nonnegative().default(0),
+    color: z.string().optional().default(""),
+    custom_color: z.string().optional().default("")
+  })).optional().default([]),
+  extra_items: z.array(z.object({
+    item_name: z.string().optional().default(""),
+    quantity: z.coerce.number().nonnegative().default(0),
+    unit: z.string().optional().default("PIEZA"),
+    unit_cost: z.coerce.number().nonnegative().default(0)
+  })).optional().default([]),
   commission: z.coerce.number().min(0).max(.30).default(0),
   discount: z.coerce.number().min(0).max(.90).default(0)
 });
@@ -323,14 +335,10 @@ function itemNameFromRecipe(recipe: RecipeRow, input: QuoteInput) {
 
 function quantityFromRecipe(recipe: RecipeRow, input: QuoteInput) {
   const selectedItemName = itemNameFromRecipe(recipe, input);
-  const selectedVinylMl = Number(input.vinyl_ml || 0);
+  const totalVinylMl = selectedVinylItems(input).reduce((sum, item) => sum + Number(item.ml || 0), 0);
 
-  if (selectedVinylMl > 0 && normalize(selectedItemName).includes("VINIL DE CORTE")) {
-    return round2(selectedVinylMl);
-  }
-
-  if (selectedVinylMl > 0 && normalize(selectedItemName).includes("TRANSFER")) {
-    return round2(selectedVinylMl);
+  if (totalVinylMl > 0 && isTransferItem(selectedItemName)) {
+    return round2(totalVinylMl);
   }
 
   const factor = Number(recipe.factor || 1);
@@ -461,15 +469,70 @@ function isVinylItem(itemName: string) {
   return name.includes("VINIL DE CORTE");
 }
 
+function isTransferItem(itemName: string) {
+  const name = normalize(itemName);
+  return name.includes("TRANSFER");
+}
+
+function selectedVinylItems(input: QuoteInput) {
+  const items = (input.vinyl_items || [])
+    .map((item) => ({
+      vinyl_type: (item.vinyl_type || "").trim(),
+      ml: Number(item.ml || 0),
+      color: (item.color || "").trim().toUpperCase(),
+      custom_color: (item.custom_color || "").trim().toUpperCase()
+    }))
+    .filter((item) => item.vinyl_type && item.ml > 0);
+
+  if (items.length > 0) return items;
+
+  const legacyMl = Number(input.vinyl_ml || 0);
+  if (legacyMl > 0 && input.cut_vinyl) {
+    return [
+      {
+        vinyl_type: input.cut_vinyl,
+        ml: legacyMl,
+        color: (input.vinyl_color || "").trim().toUpperCase(),
+        custom_color: (input.vinyl_custom_color || "").trim().toUpperCase()
+      }
+    ];
+  }
+
+  return [];
+}
+
+function vinylColorLabel(item: { color?: string; custom_color?: string }) {
+  const color = (item.color || "").trim().toUpperCase();
+  const custom = (item.custom_color || "").trim().toUpperCase();
+
+  if (color === "OTRO" && custom) return custom;
+  return color || "";
+}
+
+function vinylDescription(input: QuoteInput) {
+  const items = selectedVinylItems(input);
+  if (!items.length) return "";
+
+  return items
+    .map((item) => {
+      const color = vinylColorLabel(item);
+      const colorText = color ? ` COLOR ${color}` : "";
+      return `${item.vinyl_type}${colorText} · ${item.ml} ML`;
+    })
+    .join(", ");
+}
+
+
 export async function calculateQuote(input: QuoteInput) {
   const catalog = await loadCatalog();
   const recipes = await loadRecipes();
 
   const applicableRecipes = recipes.filter((recipe) => matchesRecipe(recipe, input));
 
-  const rawLines: QuoteLine[] = applicableRecipes.map((recipe) => {
+  const rawLines: QuoteLine[] = [];
+
+  for (const recipe of applicableRecipes) {
     const itemName = itemNameFromRecipe(recipe, input);
-    const quantity = quantityFromRecipe(recipe, input);
     const forcedUnitCost = forcedUnitCostForRecipe(recipe, input);
 
     const visibleToClient =
@@ -477,23 +540,66 @@ export async function calculateQuote(input: QuoteInput) {
       recipe.formula_type === "design_service" ||
       recipe.formula_type === "transfer_zone";
 
-    const line = makeLine(
-      catalog,
-      recipe.section,
-      itemName,
-      quantity,
-      Boolean(recipe.prefer_sale_price),
-      visibleToClient,
-      forcedUnitCost
-    );
+    if (isVinylItem(itemName)) {
+      const vinylItems = selectedVinylItems(input);
 
-    const color = selectedVinylColor(input);
-    if (color && isVinylItem(itemName)) {
-      line.item_name = `${line.item_name} · COLOR ${color}`;
+      if (vinylItems.length > 0) {
+        for (const vinylItem of vinylItems) {
+          const line = makeLine(
+            catalog,
+            recipe.section,
+            vinylItem.vinyl_type,
+            Number(vinylItem.ml || 0),
+            Boolean(recipe.prefer_sale_price),
+            visibleToClient,
+            forcedUnitCost
+          );
+
+          const color = vinylColorLabel(vinylItem);
+          if (color) {
+            line.item_name = `${line.item_name} · COLOR ${color}`;
+          }
+
+          rawLines.push(line);
+        }
+
+        continue;
+      }
     }
 
-    return line;
-  });
+    const quantity = quantityFromRecipe(recipe, input);
+
+    rawLines.push(
+      makeLine(
+        catalog,
+        recipe.section,
+        itemName,
+        quantity,
+        Boolean(recipe.prefer_sale_price),
+        visibleToClient,
+        forcedUnitCost
+      )
+    );
+  }
+
+  for (const extra of input.extra_items || []) {
+    const itemName = (extra.item_name || "").trim().toUpperCase();
+    const quantity = Number(extra.quantity || 0);
+    const unit = (extra.unit || "PIEZA").trim().toUpperCase();
+    const unitCost = Number(extra.unit_cost || 0);
+
+    if (itemName && quantity > 0 && unitCost > 0) {
+      rawLines.push({
+        section: "extra",
+        item_name: itemName,
+        quantity: round2(quantity),
+        unit,
+        unit_cost: round2(unitCost),
+        total_cost: round2(quantity * unitCost),
+        visible_to_client: false
+      });
+    }
+  }
 
   const lines = cleanLines(rawLines);
   const grouped = groupLines(lines);
@@ -536,7 +642,7 @@ export async function calculateQuote(input: QuoteInput) {
           ? `IMPRESIÓN: ${HP_BACKLIGHT_PRINT}. `
           : ""
       }` +
-      `${isBacklightRotulada(input) ? `ROTULADO: ${input.cut_vinyl}${selectedVinylColor(input) ? ` · COLOR ${selectedVinylColor(input)}` : ""}${input.vinyl_ml ? ` · ${input.vinyl_ml} ML` : ""}. ` : ""}` +
+      `${isBacklightRotulada(input) ? `ROTULADO: ${vinylDescription(input)}. ` : ""}` +
       `ILUMINACIÓN: ${input.lighting_type}. ` +
       `${
         input.installation_included

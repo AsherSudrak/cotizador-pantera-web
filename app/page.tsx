@@ -70,9 +70,22 @@ const defaultForm = {
   transfer_zone: "ZONA A",
   design_service: "15MIN. DE DISEÑO GRAFICO",
   backlight_print_service: BACKLIGHT_PRINT_HP,
-  cut_vinyl: "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
-  vinyl_ml: 1,
-  vinyl_color: "NEGRO",
+  vinyl_items: [
+    {
+      vinyl_type: "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
+      ml: 1,
+      color: "NEGRO",
+      custom_color: ""
+    }
+  ],
+  extra_items: [
+    {
+      item_name: "",
+      quantity: 0,
+      unit: "PIEZA",
+      unit_cost: 0
+    }
+  ],
   commission: 0,
   discount: 0
 };
@@ -136,6 +149,86 @@ export default function HomePage() {
     setQuote(null);
   }
 
+  function updateVinylItem(index: number, field: string, value: any) {
+    const items = [...(form.vinyl_items || [])];
+    items[index] = { ...items[index], [field]: value };
+    setForm({ ...form, vinyl_items: items });
+  }
+
+  function addVinylItem() {
+    setForm({
+      ...form,
+      vinyl_items: [
+        ...(form.vinyl_items || []),
+        {
+          vinyl_type: "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
+          ml: 1,
+          color: "NEGRO",
+          custom_color: ""
+        }
+      ]
+    });
+  }
+
+  function removeVinylItem(index: number) {
+    const items = [...(form.vinyl_items || [])];
+    items.splice(index, 1);
+    setForm({
+      ...form,
+      vinyl_items:
+        items.length > 0
+          ? items
+          : [
+              {
+                vinyl_type: "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
+                ml: 1,
+                color: "NEGRO",
+                custom_color: ""
+              }
+            ]
+    });
+  }
+
+  function updateExtraItem(index: number, field: string, value: any) {
+    const items = [...(form.extra_items || [])];
+    items[index] = { ...items[index], [field]: value };
+    setForm({ ...form, extra_items: items });
+  }
+
+  function addExtraItem() {
+    setForm({
+      ...form,
+      extra_items: [
+        ...(form.extra_items || []),
+        {
+          item_name: "",
+          quantity: 0,
+          unit: "PIEZA",
+          unit_cost: 0
+        }
+      ]
+    });
+  }
+
+  function removeExtraItem(index: number) {
+    const items = [...(form.extra_items || [])];
+    items.splice(index, 1);
+    setForm({
+      ...form,
+      extra_items:
+        items.length > 0
+          ? items
+          : [
+              {
+                item_name: "",
+                quantity: 0,
+                unit: "PIEZA",
+                unit_cost: 0
+              }
+            ]
+    });
+  }
+
   async function validateKey() {
     setLoading(true);
     setQuote(null);
@@ -157,13 +250,35 @@ export default function HomePage() {
   }
 
   function buildPayload() {
+    const vinylItems = showCutVinyl
+      ? (form.vinyl_items || [])
+          .map((item: any) => ({
+            vinyl_type: item.vinyl_type || "",
+            ml: Number(item.ml || 0),
+            color: item.color || "",
+            custom_color: item.custom_color || ""
+          }))
+          .filter((item: any) => item.vinyl_type && item.ml > 0)
+      : [];
+
+    const extraItems = (form.extra_items || [])
+      .map((item: any) => ({
+        item_name: item.item_name || "",
+        quantity: Number(item.quantity || 0),
+        unit: item.unit || "PIEZA",
+        unit_cost: Number(item.unit_cost || 0)
+      }))
+      .filter((item: any) => item.item_name && item.quantity > 0 && item.unit_cost > 0);
+
     return {
       ...form,
       access_key: accessKey,
-      cut_vinyl: showCutVinyl ? form.cut_vinyl : "",
-      vinyl_ml: showCutVinyl ? form.vinyl_ml : 0,
-      vinyl_color: showCutVinyl ? form.vinyl_color : "",
-      vinyl_custom_color: showCutVinyl ? form.vinyl_custom_color || "" : "",
+      vinyl_items: vinylItems,
+      cut_vinyl: vinylItems.length > 0 ? vinylItems[0].vinyl_type : "",
+      vinyl_ml: vinylItems.reduce((sum: number, item: any) => sum + Number(item.ml || 0), 0),
+      vinyl_color: vinylItems.length > 0 ? vinylItems[0].color : "",
+      vinyl_custom_color: vinylItems.length > 0 ? vinylItems[0].custom_color || "" : "",
+      extra_items: extraItems,
       backlight_print_service: showBacklightPrint ? BACKLIGHT_PRINT_HP : ""
     };
   }
@@ -288,23 +403,87 @@ export default function HomePage() {
               )}
 
               {showCutVinyl && (
-                <>
-                  <Select label="Vinil de corte / rotulado" value={form.cut_vinyl} onChange={(v) => setForm({ ...form, cut_vinyl: v })} options={VINYL_OPTIONS} />
-                  <div className="row">
-                    <label>ML de vinil</label>
-                    <input type="number" step="0.01" min="0" value={form.vinyl_ml} onChange={(e) => setForm({ ...form, vinyl_ml: Number(e.target.value) })} placeholder="Ej. 2.50" />
-                  </div>
+                <div className="status warn" style={{ background: "transparent", borderStyle: "solid" }}>
+                  <h3 style={{ marginTop: 0 }}>Viniles por color</h3>
 
-                  <Select label="Color de vinil" value={form.vinyl_color} onChange={(v) => setForm({ ...form, vinyl_color: v })} options={VINYL_COLOR_OPTIONS} />
+                  {(form.vinyl_items || []).map((item: any, index: number) => (
+                    <div
+                      key={index}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1.5fr .6fr .8fr .9fr auto",
+                        gap: 8,
+                        alignItems: "end",
+                        marginBottom: 10
+                      }}
+                    >
+                      <div className="row" style={{ margin: 0 }}>
+                        <label>Tipo de vinil</label>
+                        <select
+                          value={item.vinyl_type}
+                          onChange={(e) => updateVinylItem(index, "vinyl_type", e.target.value)}
+                        >
+                          {VINYL_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                  {form.vinyl_color === "OTRO" && (
-                    <div className="row">
-                      <label>Color personalizado</label>
-                      <input value={form.vinyl_custom_color || ""} onChange={(e) => setForm({ ...form, vinyl_custom_color: e.target.value.toUpperCase() })} placeholder="Ej. ROSA, TURQUESA, CAFÉ" />
+                      <div className="row" style={{ margin: 0 }}>
+                        <label>ML</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.ml}
+                          onChange={(e) => updateVinylItem(index, "ml", Number(e.target.value))}
+                          placeholder="1.00"
+                        />
+                      </div>
+
+                      <div className="row" style={{ margin: 0 }}>
+                        <label>Color</label>
+                        <select
+                          value={item.color}
+                          onChange={(e) => updateVinylItem(index, "color", e.target.value)}
+                        >
+                          {VINYL_COLOR_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="row" style={{ margin: 0 }}>
+                        <label>Otro color</label>
+                        <input
+                          value={item.custom_color || ""}
+                          onChange={(e) => updateVinylItem(index, "custom_color", e.target.value.toUpperCase())}
+                          placeholder="Opcional"
+                          disabled={item.color !== "OTRO"}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => removeVinylItem(index)}
+                        disabled={(form.vinyl_items || []).length <= 1}
+                      >
+                        Quitar
+                      </button>
                     </div>
-                  )}
-                </>
+                  ))}
+
+                  <button type="button" className="secondary" onClick={addVinylItem}>
+                    + Agregar otro color de vinil
+                  </button>
+                </div>
               )}
+
               <div className="row">
                 <label>Ancho × Alto</label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -327,6 +506,76 @@ export default function HomePage() {
               ]} />
 
               <Select label="Traslado" value={form.transfer_zone} onChange={(v) => setForm({ ...form, transfer_zone: v })} options={["ZONA A", "ZONA B", "ZONA C", "ZONA D", "ZONA E"]} />
+
+              <div className="status warn" style={{ background: "transparent", borderStyle: "solid" }}>
+                <h3 style={{ marginTop: 0 }}>Extras manuales</h3>
+
+                {(form.extra_items || []).map((item: any, index: number) => (
+                  <div
+                    key={index}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.6fr .6fr .6fr .7fr auto",
+                      gap: 8,
+                      alignItems: "end",
+                      marginBottom: 10
+                    }}
+                  >
+                    <div className="row" style={{ margin: 0 }}>
+                      <label>Concepto extra</label>
+                      <input
+                        value={item.item_name}
+                        onChange={(e) => updateExtraItem(index, "item_name", e.target.value.toUpperCase())}
+                        placeholder="Ej. ANDAMIOS / MATERIAL EXTRA"
+                      />
+                    </div>
+
+                    <div className="row" style={{ margin: 0 }}>
+                      <label>Cant.</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={item.quantity}
+                        onChange={(e) => updateExtraItem(index, "quantity", Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="row" style={{ margin: 0 }}>
+                      <label>Unidad</label>
+                      <input
+                        value={item.unit}
+                        onChange={(e) => updateExtraItem(index, "unit", e.target.value.toUpperCase())}
+                        placeholder="PIEZA"
+                      />
+                    </div>
+
+                    <div className="row" style={{ margin: 0 }}>
+                      <label>Costo unit.</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={item.unit_cost}
+                        onChange={(e) => updateExtraItem(index, "unit_cost", Number(e.target.value))}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => removeExtraItem(index)}
+                      disabled={(form.extra_items || []).length <= 1}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+
+                <button type="button" className="secondary" onClick={addExtraItem}>
+                  + Agregar extra
+                </button>
+              </div>
 
               <div className="row">
                 <label>Descuento</label>
@@ -448,6 +697,7 @@ function QuoteResult({ quote }: { quote: any }) {
           <tr><th>Subtotal materiales</th><td>{money(sectionTotals.materials)}</td></tr>
           <tr><th>Subtotal mano de obra</th><td>{money(sectionTotals.labor)}</td></tr>
           <tr><th>Subtotal precios venta / servicios</th><td>{money(sectionTotals.sale_services)}</td></tr>
+          <tr><th>Subtotal extras</th><td>{money(sectionTotals.extras || 0)}</td></tr>
           <tr><th>Costo directo</th><td>{money(totals.direct_cost)}</td></tr>
           <tr><th>Gastos indirectos</th><td>{money(totals.indirect_cost)}</td></tr>
           <tr><th>Costo total</th><td>{money(totals.total_cost)}</td></tr>
@@ -464,6 +714,7 @@ function QuoteResult({ quote }: { quote: any }) {
       <SectionTable title="MATERIALES" lines={grouped.materials || []} subtotal={sectionTotals.materials || 0} />
       <SectionTable title="MANO DE OBRA" lines={grouped.labor || []} subtotal={sectionTotals.labor || 0} />
       <SectionTable title="PRECIOS VENTA / SERVICIOS" lines={grouped.sale_services || []} subtotal={sectionTotals.sale_services || 0} />
+      <SectionTable title="EXTRAS" lines={grouped.extras || []} subtotal={sectionTotals.extras || 0} />
     </div>
   );
 }
