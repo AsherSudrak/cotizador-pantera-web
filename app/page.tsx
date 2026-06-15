@@ -25,13 +25,9 @@ const LONA_BACK_CARATULAS = [
   "LONA BACK LIGHT ROTULADA"
 ];
 
-const CANTO_OPTIONS = ["LÁMINA GALVANIZADA", "ALUMINIO", "PINTADO", "SIN CANTO"];
+const CANTO_OPTIONS = ["LÁMINA GALVANIZADA CAL 26", "ALUMINIO"];
 
-const PRINT_BACKLIGHT_OPTIONS = [
-  "IMPRESION DE LONA BACK LIGHT EN GRAN FORMATO (EN ALLWIN)",
-  "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)",
-  "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP, CON TINTA BLANCA)"
-];
+const BACKLIGHT_PRINT_HP = "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
 
 const VINYL_OPTIONS = ["VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB"];
 
@@ -44,14 +40,14 @@ const defaultForm = {
   depth_cm: 20,
   views: 1,
   face_material: "LONA BACK LIGHT IMPRESA",
-  canto: "LÁMINA GALVANIZADA",
+  canto: "LÁMINA GALVANIZADA CAL 26",
   finish: "IMPRESA",
   lighting_type: "LAMPARAS LED T8",
   installation_included: true,
   installation_condition: "A NIVEL DE PISO",
   transfer_zone: "ZONA A",
   design_service: "15MIN. DE DISEÑO GRAFICO",
-  backlight_print_service: "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)",
+  backlight_print_service: BACKLIGHT_PRINT_HP,
   cut_vinyl: "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB",
   commission: 0,
   discount: 0
@@ -141,7 +137,7 @@ export default function HomePage() {
       ...form,
       access_key: accessKey,
       cut_vinyl: showCutVinyl ? form.cut_vinyl : "",
-      backlight_print_service: showBacklightPrint ? form.backlight_print_service : ""
+      backlight_print_service: showBacklightPrint ? BACKLIGHT_PRINT_HP : ""
     };
   }
 
@@ -258,7 +254,10 @@ export default function HomePage() {
               </div>
 
               {showBacklightPrint && (
-                <Select label="Impresión back light" value={form.backlight_print_service} onChange={(v) => setForm({ ...form, backlight_print_service: v })} options={PRINT_BACKLIGHT_OPTIONS} />
+                <div className="row">
+                  <label>Impresión back light</label>
+                  <input value="HP · ALTA RESOLUCIÓN" readOnly />
+                </div>
               )}
 
               {showCutVinyl && (

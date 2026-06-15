@@ -174,7 +174,9 @@ function addCommonStructure(
   const galvanizedSheets = Math.ceil(((totalFaceArea + sideArea) / 3.721) / 0.25) * 0.25;
   const tubularPieces = Math.max(1, Math.ceil(((input.width_m + input.height_m) * 2 * input.views * 1.2) / 6));
 
-  if (input.canto !== "SIN CANTO") {
+  if (input.canto === "ALUMINIO") {
+    lines.push(lineFromCatalog(catalog, "material", "ALUMINIO PARA CANTO", Math.ceil((input.width_m + input.height_m) * 2 * input.views * 100) / 100));
+  } else {
     lines.push(lineFromCatalog(catalog, "material", "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22", galvanizedSheets));
   }
 
@@ -210,7 +212,7 @@ export async function calculateQuote(input: QuoteInput) {
     rawLines.push(lineFromCatalog(catalog, "material", "LONA BACK LIGHT 2.00 x 50", totalFaceArea * 1.1));
 
     if (isBacklightPrinted(input)) {
-      const printService = input.backlight_print_service || "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
+      const printService = "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
       rawLines.push(lineFromCatalog(catalog, "sale_service", printService, totalFaceArea, true, true));
     }
 
@@ -310,7 +312,7 @@ export async function calculateQuote(input: QuoteInput) {
       `FABRICACIÓN ${input.box_type} — MEDIDAS ${input.width_m.toFixed(2)} X ${input.height_m.toFixed(2)} M, ` +
       `FONDO ${input.depth_cm} CM, ${input.views} VISTA(S). CARÁTULA: ${input.face_material}. ` +
       `CANTO: ${input.canto || "NO ESPECIFICADO"}. ACABADO: ${input.finish || "AUTOMÁTICO"}. ` +
-      `${isBacklightPrinted(input) ? `IMPRESIÓN: ${input.backlight_print_service}. ` : ""}` +
+      `${isBacklightPrinted(input) ? `IMPRESIÓN: IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP). ` : ""}` +
       `${isBacklightRotulada(input) ? `ROTULADO: ${input.cut_vinyl}. ` : ""}` +
       `ILUMINACIÓN: ${input.lighting_type}. ` +
       `${input.installation_included ? `INCLUYE INSTALACIÓN ${input.installation_condition}.` : "SIN INSTALACIÓN."} ` +
