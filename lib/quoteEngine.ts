@@ -1,5 +1,3 @@
-"use server";
-
 import { z } from "zod";
 import { supabaseAdmin } from "./supabaseAdmin";
 import {
@@ -24,7 +22,7 @@ export const QuoteInputSchema = z.object({
   depth_cm: z.coerce.number().nonnegative().default(20),
   views: z.coerce.number().int().positive().default(1),
   face_material: z.string().min(1),
-  canto: z.string().optional().default("LÁMINA GALVANIZADA"),
+  canto: z.string().optional().default("LÁMINA GALVANIZADA CAL 26"),
   finish: z.string().optional().default(""),
   lighting_type: z.string().min(1),
   installation_included: z.boolean().default(true),
@@ -38,6 +36,7 @@ export const QuoteInputSchema = z.object({
 });
 
 export type QuoteInput = z.infer<typeof QuoteInputSchema>;
+
 export type QuoteSection = "material" | "labor" | "sale_service" | "extra";
 
 export type QuoteLine = {
@@ -66,6 +65,7 @@ async function loadCatalog() {
   if (error) throw new Error(error.message);
 
   const map = new Map<string, CatalogItem>();
+
   for (const row of data || []) {
     map.set(row.item_name, {
       item_name: row.item_name,
@@ -74,6 +74,7 @@ async function loadCatalog() {
       sale_price: row.sale_price === null ? null : Number(row.sale_price)
     });
   }
+
   return map;
 }
 
@@ -125,6 +126,7 @@ function cleanLines(lines: QuoteLine[]) {
     const qty = Number(line.quantity || 0);
     const total = Number(line.total_cost || 0);
     const unitCost = Number(line.unit_cost || 0);
+
     return qty > 0 && unitCost > 0 && total > 0;
   });
 }
@@ -144,6 +146,7 @@ function sumLines(lines: QuoteLine[]) {
 
 function isSmallTwoViewAcrylicSuajada(input: QuoteInput) {
   const totalFaceArea = input.width_m * input.height_m * input.views;
+
   return (
     input.box_type === "CAJA SUAJADA A DOS VISTAS" &&
     input.face_material.toUpperCase().includes("ACRILICO") &&
@@ -170,17 +173,48 @@ function addCommonStructure(
   input: QuoteInput,
   totalFaceArea: number
 ) {
-  const sideArea = (input.width_m + input.height_m) * 2 * (input.depth_cm / 100) * input.views;
-  const galvanizedSheets = Math.ceil(((totalFaceArea + sideArea) / 3.721) / 0.25) * 0.25;
-  const tubularPieces = Math.max(1, Math.ceil(((input.width_m + input.height_m) * 2 * input.views * 1.2) / 6));
+  const sideArea =
+    (input.width_m + input.height_m) *
+    2 *
+    (input.depth_cm / 100) *
+    input.views;
+
+  const galvanizedSheets =
+    Math.ceil(((totalFaceArea + sideArea) / 3.721) / 0.25) * 0.25;
+
+  const tubularPieces = Math.max(
+    1,
+    Math.ceil(((input.width_m + input.height_m) * 2 * input.views * 1.2) / 6)
+  );
 
   if (input.canto === "ALUMINIO") {
-    lines.push(lineFromCatalog(catalog, "material", "ALUMINIO PARA CANTO", Math.ceil((input.width_m + input.height_m) * 2 * input.views * 100) / 100));
+    lines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "ALUMINIO PARA CANTO",
+        Math.ceil((input.width_m + input.height_m) * 2 * input.views * 100) / 100
+      )
+    );
   } else {
-    lines.push(lineFromCatalog(catalog, "material", "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22", galvanizedSheets));
+    lines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22",
+        galvanizedSheets
+      )
+    );
   }
 
-  lines.push(lineFromCatalog(catalog, "material", "TUBULAR PINTADO DE 3/4 X 3/4 OK", tubularPieces));
+  lines.push(
+    lineFromCatalog(
+      catalog,
+      "material",
+      "TUBULAR PINTADO DE 3/4 X 3/4 OK",
+      tubularPieces
+    )
+  );
 }
 
 function addLighting(
@@ -191,15 +225,40 @@ function addLighting(
 ) {
   if (input.lighting_type.includes("LEDS BLANCOS")) {
     const packages = Math.max(1, Math.ceil((totalFaceArea * 18) / 20));
-    lines.push(lineFromCatalog(catalog, "material", "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)", packages));
-    lines.push(lineFromCatalog(catalog, "material", "FUENTE DE PODER DE 100 W", Math.max(1, Math.ceil((packages * 14.4) / 70))));
-    lines.push(lineFromCatalog(catalog, "material", "PEGAMENTO P/ESPEJO GUNTHER (USAR)", Math.max(1, Math.ceil(totalFaceArea / 4))));
+
+    lines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)",
+        packages
+      )
+    );
+
+    lines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "FUENTE DE PODER DE 100 W",
+        Math.max(1, Math.ceil((packages * 14.4) / 70))
+      )
+    );
+
+    lines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "PEGAMENTO P/ESPEJO GUNTHER (USAR)",
+        Math.max(1, Math.ceil(totalFaceArea / 4))
+      )
+    );
   }
 }
 
 export async function calculateQuote(input: QuoteInput) {
   const catalog = await loadCatalog();
   const rawLines: QuoteLine[] = [];
+
   const faceArea = input.width_m * input.height_m;
   const totalFaceArea = faceArea * input.views;
   const installFactor = INSTALL_FACTORS[input.installation_condition] || 1;
@@ -209,79 +268,281 @@ export async function calculateQuote(input: QuoteInput) {
   if (isLonaBackBox(input)) {
     addCommonStructure(rawLines, catalog, input, totalFaceArea);
 
-    rawLines.push(lineFromCatalog(catalog, "material", "LONA BACK LIGHT 2.00 x 50", totalFaceArea * 1.1));
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "LONA BACK LIGHT 2.00 x 50",
+        totalFaceArea * 1.1
+      )
+    );
 
     if (isBacklightPrinted(input)) {
-      const printService = "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
-      rawLines.push(lineFromCatalog(catalog, "sale_service", printService, totalFaceArea, true, true));
+      const printService =
+        "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
+
+      rawLines.push(
+        lineFromCatalog(
+          catalog,
+          "sale_service",
+          printService,
+          totalFaceArea,
+          true,
+          true
+        )
+      );
     }
 
     if (isBacklightRotulada(input)) {
       const vinyl = input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB";
-      rawLines.push(lineFromCatalog(catalog, "material", vinyl, Math.ceil(totalFaceArea * 1.2 * 100) / 100, true));
+
+      rawLines.push(
+        lineFromCatalog(
+          catalog,
+          "material",
+          vinyl,
+          Math.ceil(totalFaceArea * 1.2 * 100) / 100,
+          true
+        )
+      );
     }
 
     addLighting(rawLines, catalog, input, totalFaceArea);
 
     const fabricationHours = Math.max(10, totalFaceArea * 10);
-    const installationHours = input.installation_included ? (totalFaceArea >= 40 ? 18 : 8) : 0;
+    const installationHours = input.installation_included
+      ? totalFaceArea >= 40
+        ? 18
+        : 8
+      : 0;
 
-    rawLines.push(manualLine("labor", "FABRICACIÓN", fabricationHours, "Hora(s)", LABOR_HOUR_COST));
+    rawLines.push(
+      manualLine(
+        "labor",
+        "FABRICACIÓN",
+        fabricationHours,
+        "Hora(s)",
+        LABOR_HOUR_COST
+      )
+    );
+
     if (installationHours > 0) {
-      rawLines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, installationHours, "Hora(s)", LABOR_HOUR_COST * installFactor));
+      rawLines.push(
+        manualLine(
+          "labor",
+          `INSTALACIÓN · ${input.installation_condition}`,
+          installationHours,
+          "Hora(s)",
+          LABOR_HOUR_COST * installFactor
+        )
+      );
     }
   } else if (calibrated) {
-    rawLines.push(lineFromCatalog(catalog, "material", "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK", 0.75));
-    rawLines.push(lineFromCatalog(catalog, "material", "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22", 0.50));
-    rawLines.push(lineFromCatalog(catalog, "material", "TUBULAR PINTADO DE 1/2 X 1/2", 1.50));
-    rawLines.push(lineFromCatalog(catalog, "material", "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)", 2));
-    rawLines.push(lineFromCatalog(catalog, "material", "FUENTE DE PODER DE 60 W", 1));
-    rawLines.push(lineFromCatalog(catalog, "material", "CABLE DUPLEX TRANSPARENTE # 18 OK", 5));
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK",
+        0.75
+      )
+    );
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22",
+        0.5
+      )
+    );
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "TUBULAR PINTADO DE 1/2 X 1/2",
+        1.5
+      )
+    );
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)",
+        2
+      )
+    );
+
+    rawLines.push(
+      lineFromCatalog(catalog, "material", "FUENTE DE PODER DE 60 W", 1)
+    );
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "CABLE DUPLEX TRANSPARENTE # 18 OK",
+        5
+      )
+    );
+
     rawLines.push(lineFromCatalog(catalog, "material", "THINNER STD", 2));
-    rawLines.push(lineFromCatalog(catalog, "material", "PINTURA ESMALTE ACRILICO S/RAPIDO COLOR NEGRO", 1));
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "PINTURA ESMALTE ACRILICO S/RAPIDO COLOR NEGRO",
+        1
+      )
+    );
+
     rawLines.push(lineFromCatalog(catalog, "material", "SILVATRIM NEGRO", 6));
     rawLines.push(lineFromCatalog(catalog, "material", "TAQUETE TX 3/8 X 3", 4));
     rawLines.push(lineFromCatalog(catalog, "material", "ESTOPA", 0.25));
     rawLines.push(lineFromCatalog(catalog, "material", "LIJA # 100", 1));
-    rawLines.push(lineFromCatalog(catalog, "material", "ADECRIL EXTRA ENVASE DE (960gr)", 0.10));
-    rawLines.push(lineFromCatalog(catalog, "material", "CLOROFORMO ENVASE DE (960gr)", 0.10));
-    rawLines.push(lineFromCatalog(catalog, "material", "PEGAMENTO P/ESPEJO GUNTHER (USAR)", 1));
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "ADECRIL EXTRA ENVASE DE (960gr)",
+        0.1
+      )
+    );
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "CLOROFORMO ENVASE DE (960gr)",
+        0.1
+      )
+    );
+
+    rawLines.push(
+      lineFromCatalog(
+        catalog,
+        "material",
+        "PEGAMENTO P/ESPEJO GUNTHER (USAR)",
+        1
+      )
+    );
+
     rawLines.push(lineFromCatalog(catalog, "material", "JERINGA GRANDE 3ML", 1));
 
     if (input.face_material.toUpperCase().includes("ROTULAD")) {
-      rawLines.push(lineFromCatalog(catalog, "material", input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB", 0.61, true));
+      rawLines.push(
+        lineFromCatalog(
+          catalog,
+          "material",
+          input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB",
+          0.61,
+          true
+        )
+      );
     }
 
-    rawLines.push(manualLine("labor", "FABRICACIÓN", 18, "Hora(s)", LABOR_HOUR_COST));
-    rawLines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, 1.5, "Hora(s)", LABOR_HOUR_COST * installFactor));
-    rawLines.push(manualLine("labor", "TIEMPO MUERTO", 1.15, "Hora(s)", 60));
+    rawLines.push(
+      manualLine("labor", "FABRICACIÓN", 18, "Hora(s)", LABOR_HOUR_COST)
+    );
+
+    rawLines.push(
+      manualLine(
+        "labor",
+        `INSTALACIÓN · ${input.installation_condition}`,
+        1.5,
+        "Hora(s)",
+        LABOR_HOUR_COST * installFactor
+      )
+    );
+
+    rawLines.push(
+      manualLine("labor", "TIEMPO MUERTO", 1.15, "Hora(s)", 60)
+    );
   } else {
     const acrylicSheets = input.face_material.toUpperCase().includes("ACRILICO")
       ? Math.ceil(((totalFaceArea * 1.15) / 2.9768) / 0.25) * 0.25
       : 0;
 
     if (acrylicSheets > 0) {
-      rawLines.push(lineFromCatalog(catalog, "material", "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK", acrylicSheets));
+      rawLines.push(
+        lineFromCatalog(
+          catalog,
+          "material",
+          "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK",
+          acrylicSheets
+        )
+      );
     }
 
     addCommonStructure(rawLines, catalog, input, totalFaceArea);
     addLighting(rawLines, catalog, input, totalFaceArea);
 
     if (input.face_material.toUpperCase().includes("ROTULAD")) {
-      rawLines.push(lineFromCatalog(catalog, "material", input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB", Math.ceil(totalFaceArea * 1.2 * 100) / 100, true));
+      rawLines.push(
+        lineFromCatalog(
+          catalog,
+          "material",
+          input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB",
+          Math.ceil(totalFaceArea * 1.2 * 100) / 100,
+          true
+        )
+      );
     }
 
     const fabricationHours = Math.max(14, totalFaceArea * 12 * 1.35);
-    const installationHours = input.installation_included ? (totalFaceArea >= 40 ? 18 : 8) : 0;
+    const installationHours = input.installation_included
+      ? totalFaceArea >= 40
+        ? 18
+        : 8
+      : 0;
 
-    rawLines.push(manualLine("labor", "FABRICACIÓN", fabricationHours, "Hora(s)", LABOR_HOUR_COST));
+    rawLines.push(
+      manualLine(
+        "labor",
+        "FABRICACIÓN",
+        fabricationHours,
+        "Hora(s)",
+        LABOR_HOUR_COST
+      )
+    );
+
     if (installationHours > 0) {
-      rawLines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, installationHours, "Hora(s)", LABOR_HOUR_COST * installFactor));
+      rawLines.push(
+        manualLine(
+          "labor",
+          `INSTALACIÓN · ${input.installation_condition}`,
+          installationHours,
+          "Hora(s)",
+          LABOR_HOUR_COST * installFactor
+        )
+      );
     }
   }
 
-  rawLines.push(lineFromCatalog(catalog, "sale_service", input.design_service, 1, true, true));
-  rawLines.push(lineFromCatalog(catalog, "sale_service", `TRASLADO - ${input.transfer_zone}`, 1, true, true));
+  rawLines.push(
+    lineFromCatalog(
+      catalog,
+      "sale_service",
+      input.design_service,
+      1,
+      true,
+      true
+    )
+  );
+
+  rawLines.push(
+    lineFromCatalog(
+      catalog,
+      "sale_service",
+      `TRASLADO - ${input.transfer_zone}`,
+      1,
+      true,
+      true
+    )
+  );
 
   const lines = cleanLines(rawLines);
   const grouped = groupLines(lines);
@@ -293,7 +554,13 @@ export async function calculateQuote(input: QuoteInput) {
     extras: sumLines(grouped.extras)
   };
 
-  const directCost = round2(sectionTotals.materials + sectionTotals.labor + sectionTotals.sale_services + sectionTotals.extras);
+  const directCost = round2(
+    sectionTotals.materials +
+      sectionTotals.labor +
+      sectionTotals.sale_services +
+      sectionTotals.extras
+  );
+
   const indirectCost = round2(directCost * INDIRECT_RATE);
   const totalCost = ceilPeso(directCost + indirectCost);
   const targetPrice = priceForMargin(totalCost, MIN_REAL_MARGIN, input.commission);
@@ -312,10 +579,18 @@ export async function calculateQuote(input: QuoteInput) {
       `FABRICACIÓN ${input.box_type} — MEDIDAS ${input.width_m.toFixed(2)} X ${input.height_m.toFixed(2)} M, ` +
       `FONDO ${input.depth_cm} CM, ${input.views} VISTA(S). CARÁTULA: ${input.face_material}. ` +
       `CANTO: ${input.canto || "NO ESPECIFICADO"}. ACABADO: ${input.finish || "AUTOMÁTICO"}. ` +
-      `${isBacklightPrinted(input) ? `IMPRESIÓN: IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP). ` : ""}` +
+      `${
+        isBacklightPrinted(input)
+          ? "IMPRESIÓN: IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP). "
+          : ""
+      }` +
       `${isBacklightRotulada(input) ? `ROTULADO: ${input.cut_vinyl}. ` : ""}` +
       `ILUMINACIÓN: ${input.lighting_type}. ` +
-      `${input.installation_included ? `INCLUYE INSTALACIÓN ${input.installation_condition}.` : "SIN INSTALACIÓN."} ` +
+      `${
+        input.installation_included
+          ? `INCLUYE INSTALACIÓN ${input.installation_condition}.`
+          : "SIN INSTALACIÓN."
+      } ` +
       `TRASLADO: ${input.transfer_zone}. DISEÑO: ${input.design_service}.`,
     lines,
     grouped_lines: grouped,
