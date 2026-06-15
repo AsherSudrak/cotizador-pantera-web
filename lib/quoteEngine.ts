@@ -174,8 +174,20 @@ function normalize(value: string | null | undefined) {
   return (value || "").trim().toUpperCase();
 }
 
+function canonicalBoxType(input: QuoteInput) {
+  const boxType = normalize(input.box_type);
+
+  // Evita diferencia de precios por el nombre viejo/ambiguo.
+  // Para caja suajada con acrílico de 2 vistas debe usar la receta calibrada de DOS VISTAS.
+  if (boxType === "CAJA SUAJADA CON ACRILICO") {
+    return Number(input.views || 1) >= 2 ? "CAJA SUAJADA A DOS VISTAS" : "CAJA CON ACRILICO";
+  }
+
+  return input.box_type;
+}
+
 function matchesRecipe(recipe: RecipeRow, input: QuoteInput) {
-  if (normalize(recipe.box_type) !== normalize(input.box_type)) return false;
+  if (normalize(recipe.box_type) !== normalize(canonicalBoxType(input))) return false;
 
   if (recipe.face_material && normalize(recipe.face_material) !== normalize(input.face_material)) {
     return false;
@@ -634,7 +646,7 @@ export async function calculateQuote(input: QuoteInput) {
     calibrated: false,
     recipe_count: applicableRecipes.length,
     description:
-      `FABRICACIÓN ${input.box_type} — MEDIDAS ${input.width_m.toFixed(2)} X ${input.height_m.toFixed(2)} M, ` +
+      `FABRICACIÓN ${canonicalBoxType(input)} — MEDIDAS ${input.width_m.toFixed(2)} X ${input.height_m.toFixed(2)} M, ` +
       `FONDO ${input.depth_cm} CM, ${input.views} VISTA(S). CARÁTULA: ${input.face_material}. ` +
       `CANTO: ${input.canto || "NO ESPECIFICADO"}. ACABADO: ${input.finish || "AUTOMÁTICO"}. ` +
       `${
