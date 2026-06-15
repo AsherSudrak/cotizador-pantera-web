@@ -196,8 +196,8 @@ export default function HomePage() {
   return (
     <>
       <header className="header">
-        <div className="brand"><span>PANTERA</span> PUBLICIDAD</div>
-        <div className="badge">Cotizador web · utilidad mínima 40%</div>
+        <div className="brand"><span>COTIZADOR MAESTRO</span> - D 3 R Y</div>
+        <div className="badge">Sistema privado · utilidad mínima 40%</div>
       </header>
 
       <main className="container">
@@ -223,7 +223,7 @@ export default function HomePage() {
 
               <div className="row">
                 <label>Llave diaria</label>
-                <input value={accessKey} onChange={(e) => setAccessKey(e.target.value.toUpperCase())} placeholder="PANTERA-000000" />
+                <input value={accessKey} onChange={(e) => setAccessKey(e.target.value.toUpperCase())} placeholder="D3RY-000000" />
               </div>
 
               <div className="actions">
@@ -263,15 +263,6 @@ export default function HomePage() {
               {showCutVinyl && (
                 <Select label="Vinil de corte / rotulado" value={form.cut_vinyl} onChange={(v) => setForm({ ...form, cut_vinyl: v })} options={VINYL_OPTIONS} />
               )}
-
-              {isLonaBackBox(form.box_type) && (
-                <div className="status warn">
-                  {isBacklightPrinted(form.face_material)
-                    ? "Regla activa: Lona back light + impresión. Vinil oculto y costo vinil = 0."
-                    : "Regla activa: Lona back light + vinil de corte. No se carga impresión de lona."}
-                </div>
-              )}
-
               <div className="row">
                 <label>Ancho × Alto</label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -464,7 +455,7 @@ function AdminPanel() {
   return (
     <div className="card">
       <h2>Administrador de llaves</h2>
-      <p className="small">Genera una llave para vendedores. La clave de administrador se define en Vercel como ADMIN_SECRET.</p>
+      <p className="small">Genera una llave D3RY para vendedores. La clave de administrador se define en Vercel como ADMIN_SECRET.</p>
 
       <div className="row">
         <label>Clave admin</label>

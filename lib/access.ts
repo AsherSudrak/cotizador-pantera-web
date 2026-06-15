@@ -7,11 +7,20 @@ export type AccessValidation = {
   expiresAt?: string;
 };
 
+const ACCESS_PREFIX = "D3RY";
+
 export async function validateAccessKey(keyCode: string): Promise<AccessValidation> {
   const cleanKey = (keyCode || "").trim().toUpperCase();
 
   if (!cleanKey) {
     return { ok: false, message: "Falta capturar llave de acceso." };
+  }
+
+  if (!cleanKey.startsWith(`${ACCESS_PREFIX}-`)) {
+    return {
+      ok: false,
+      message: `Llave inválida. La llave vigente debe iniciar con ${ACCESS_PREFIX}-.`
+    };
   }
 
   const now = new Date().toISOString();
@@ -47,5 +56,5 @@ export async function validateAccessKey(keyCode: string): Promise<AccessValidati
 
 export function generateAccessCode() {
   const n = Math.floor(100000 + Math.random() * 900000);
-  return `PANTERA-${n}`;
+  return `${ACCESS_PREFIX}-${n}`;
 }
