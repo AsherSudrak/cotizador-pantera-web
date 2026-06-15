@@ -1,24 +1,64 @@
-```tsx
 "use client";
 
 import { useState } from "react";
 
 type QuoteResponse = any;
 
+const BOX_TYPES = [
+  "CAJA DE LUZ CON LONA BACK",
+  "CAJA SUAJADA A DOS VISTAS",
+  "CAJA CON ACRILICO",
+  "CAJA SUAJADA CON ACRILICO",
+  "CAJA TIPO BANDERA CON LONA",
+  "CAJA TIPO BANDERA CON ACRILICO"
+];
+
+const GENERAL_CARATULAS = [
+  "ACRILICO BLANCO LECHOSO ROTULADO",
+  "ACRILICO IMPRESO",
+  "LONA BACK LIGHT IMPRESA",
+  "LONA BACK LIGHT ROTULADA"
+];
+
+const LONA_BACK_CARATULAS = [
+  "LONA BACK LIGHT IMPRESA",
+  "LONA BACK LIGHT ROTULADA"
+];
+
+const CANTO_OPTIONS = [
+  "LÁMINA GALVANIZADA",
+  "ALUMINIO",
+  "PINTADO",
+  "SIN CANTO"
+];
+
+const PRINT_BACKLIGHT_OPTIONS = [
+  "IMPRESION DE LONA BACK LIGHT EN GRAN FORMATO (EN ALLWIN)",
+  "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)",
+  "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP, CON TINTA BLANCA)"
+];
+
+const VINYL_OPTIONS = [
+  "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB"
+];
+
 const defaultForm = {
   client_name: "CLIENTE NUEVO",
   seller_name: "",
-  box_type: "CAJA SUAJADA A DOS VISTAS",
-  width_m: 0.70,
-  height_m: 0.70,
+  box_type: "CAJA DE LUZ CON LONA BACK",
+  width_m: 3,
+  height_m: 1,
   depth_cm: 20,
-  views: 2,
-  face_material: "ACRILICO BLANCO LECHOSO ROTULADO",
-  lighting_type: "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)",
+  views: 1,
+  face_material: "LONA BACK LIGHT IMPRESA",
+  canto: "LÁMINA GALVANIZADA",
+  finish: "IMPRESA",
+  lighting_type: "LAMPARAS LED T8",
   installation_included: true,
-  installation_condition: "A 3 M",
+  installation_condition: "A NIVEL DE PISO",
   transfer_zone: "ZONA A",
   design_service: "15MIN. DE DISEÑO GRAFICO",
+  backlight_print_service: "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)",
   cut_vinyl: "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB",
   commission: 0,
   discount: 0
@@ -31,6 +71,31 @@ function money(value: number) {
   }).format(value || 0);
 }
 
+function isLonaBackBox(boxType: string) {
+  return boxType.toUpperCase().includes("LONA BACK");
+}
+
+function isBacklightPrinted(faceMaterial: string) {
+  return faceMaterial === "LONA BACK LIGHT IMPRESA";
+}
+
+function isBacklightVinyl(faceMaterial: string) {
+  return faceMaterial === "LONA BACK LIGHT ROTULADA";
+}
+
+function getCaratulaOptions(boxType: string) {
+  if (isLonaBackBox(boxType)) return LONA_BACK_CARATULAS;
+  return GENERAL_CARATULAS;
+}
+
+function getAutomaticFinish(faceMaterial: string) {
+  if (faceMaterial === "LONA BACK LIGHT IMPRESA") return "IMPRESA";
+  if (faceMaterial === "LONA BACK LIGHT ROTULADA") return "ROTULADA CON VINIL";
+  if (faceMaterial === "ACRILICO IMPRESO") return "IMPRESA";
+  if (faceMaterial.includes("ROTULADO")) return "ROTULADA CON VINIL";
+  return "SIN ROTULAR";
+}
+
 export default function HomePage() {
   const [tab, setTab] = useState<"cotizador" | "admin">("cotizador");
   const [accessKey, setAccessKey] = useState("");
@@ -40,6 +105,31 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
 
   const locked = !accessStatus?.ok;
+  const caratulaOptions = getCaratulaOptions(form.box_type);
+  const showBacklightPrint = isLonaBackBox(form.box_type) && isBacklightPrinted(form.face_material);
+  const showCutVinyl = isBacklightVinyl(form.face_material) || (!isLonaBackBox(form.box_type) && form.face_material.toUpperCase().includes("ROTULAD"));
+
+  function updateBoxType(value: string) {
+    const options = getCaratulaOptions(value);
+    const nextFace = options[0];
+
+    setForm({
+      ...form,
+      box_type: value,
+      face_material: nextFace,
+      finish: getAutomaticFinish(nextFace)
+    });
+    setQuote(null);
+  }
+
+  function updateFaceMaterial(value: string) {
+    setForm({
+      ...form,
+      face_material: value,
+      finish: getAutomaticFinish(value)
+    });
+    setQuote(null);
+  }
 
   async function validateKey() {
     setLoading(true);
@@ -69,10 +159,17 @@ export default function HomePage() {
     setLoading(true);
 
     try {
+      const payload = {
+        ...form,
+        access_key: accessKey,
+        cut_vinyl: showCutVinyl ? form.cut_vinyl : "",
+        backlight_print_service: showBacklightPrint ? form.backlight_print_service : ""
+      };
+
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...form, access_key: accessKey })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -144,15 +241,11 @@ export default function HomePage() {
                 )}
 
                 {accessStatus?.code && (
-                  <div className="small">
-                    Código: {accessStatus.code}
-                  </div>
+                  <div className="small">Código: {accessStatus.code}</div>
                 )}
 
                 {accessStatus?.hint && (
-                  <div className="small">
-                    Hint: {accessStatus.hint}
-                  </div>
+                  <div className="small">Hint: {accessStatus.hint}</div>
                 )}
 
                 {accessStatus?.expiresAt && (
@@ -196,16 +289,65 @@ export default function HomePage() {
               <Select
                 label="Tipo de caja"
                 value={form.box_type}
-                onChange={(v) => setForm({ ...form, box_type: v })}
-                options={[
-                  "CAJA SUAJADA A DOS VISTAS",
-                  "CAJA CON LONA BACK LIGHT",
-                  "CAJA CON ACRILICO",
-                  "CAJA SUAJADA CON ACRILICO",
-                  "CAJA TIPO BANDERA CON LONA",
-                  "CAJA TIPO BANDERA CON ACRILICO"
-                ]}
+                onChange={updateBoxType}
+                options={BOX_TYPES}
               />
+
+              <Select
+                label="Carátula / frente"
+                value={form.face_material}
+                onChange={updateFaceMaterial}
+                options={caratulaOptions}
+              />
+
+              <Select
+                label="Canto"
+                value={form.canto}
+                onChange={(v) => setForm({ ...form, canto: v })}
+                options={CANTO_OPTIONS}
+              />
+
+              <div className="row">
+                <label>Vistas</label>
+                <select
+                  value={form.views}
+                  onChange={(e) => setForm({ ...form, views: Number(e.target.value) })}
+                >
+                  <option value={1}>1 vista</option>
+                  <option value={2}>2 vistas</option>
+                </select>
+              </div>
+
+              <div className="row">
+                <label>Acabado</label>
+                <input value={form.finish} readOnly />
+              </div>
+
+              {showBacklightPrint && (
+                <Select
+                  label="Impresión back light"
+                  value={form.backlight_print_service}
+                  onChange={(v) => setForm({ ...form, backlight_print_service: v })}
+                  options={PRINT_BACKLIGHT_OPTIONS}
+                />
+              )}
+
+              {showCutVinyl && (
+                <Select
+                  label="Vinil de corte / rotulado"
+                  value={form.cut_vinyl}
+                  onChange={(v) => setForm({ ...form, cut_vinyl: v })}
+                  options={VINYL_OPTIONS}
+                />
+              )}
+
+              {isLonaBackBox(form.box_type) && (
+                <div className="status warn">
+                  {isBacklightPrinted(form.face_material)
+                    ? "Regla activa: Lona back light + impresión. Vinil oculto y costo vinil = 0."
+                    : "Regla activa: Lona back light + vinil de corte. No se carga impresión de lona."}
+                </div>
+              )}
 
               <div className="row">
                 <label>Ancho × Alto</label>
@@ -226,32 +368,13 @@ export default function HomePage() {
               </div>
 
               <div className="row">
-                <label>Fondo cm / vistas</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <input
-                    type="number"
-                    value={form.depth_cm}
-                    onChange={(e) => setForm({ ...form, depth_cm: Number(e.target.value) })}
-                  />
-                  <input
-                    type="number"
-                    value={form.views}
-                    onChange={(e) => setForm({ ...form, views: Number(e.target.value) })}
-                  />
-                </div>
+                <label>Fondo cm</label>
+                <input
+                  type="number"
+                  value={form.depth_cm}
+                  onChange={(e) => setForm({ ...form, depth_cm: Number(e.target.value) })}
+                />
               </div>
-
-              <Select
-                label="Carátula"
-                value={form.face_material}
-                onChange={(v) => setForm({ ...form, face_material: v })}
-                options={[
-                  "ACRILICO BLANCO LECHOSO ROTULADO",
-                  "ACRILICO IMPRESO",
-                  "LONA BACK LIGHT IMPRESA",
-                  "LONA BACK LIGHT ROTULADA CON VINIL"
-                ]}
-              />
 
               <Select
                 label="Iluminación"
@@ -287,22 +410,7 @@ export default function HomePage() {
                 label="Traslado"
                 value={form.transfer_zone}
                 onChange={(v) => setForm({ ...form, transfer_zone: v })}
-                options={[
-                  "ZONA A",
-                  "ZONA B",
-                  "ZONA C",
-                  "ZONA D",
-                  "ZONA E"
-                ]}
-              />
-
-              <Select
-                label="Vinil de corte"
-                value={form.cut_vinyl}
-                onChange={(v) => setForm({ ...form, cut_vinyl: v })}
-                options={[
-                  "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB"
-                ]}
+                options={["ZONA A", "ZONA B", "ZONA C", "ZONA D", "ZONA E"]}
               />
 
               <div className="row">
@@ -426,26 +534,11 @@ function QuoteResult({ quote }: { quote: any }) {
 
       <table className="table">
         <tbody>
-          <tr>
-            <th>Costo directo</th>
-            <td>{money(totals.direct_cost)}</td>
-          </tr>
-          <tr>
-            <th>Indirectos</th>
-            <td>{money(totals.indirect_cost)}</td>
-          </tr>
-          <tr>
-            <th>Costo total</th>
-            <td>{money(totals.total_cost)}</td>
-          </tr>
-          <tr>
-            <th>IVA</th>
-            <td>{money(totals.iva)}</td>
-          </tr>
-          <tr>
-            <th>Margen real</th>
-            <td>{totals.real_margin.toFixed(2)}%</td>
-          </tr>
+          <tr><th>Costo directo</th><td>{money(totals.direct_cost)}</td></tr>
+          <tr><th>Indirectos</th><td>{money(totals.indirect_cost)}</td></tr>
+          <tr><th>Costo total</th><td>{money(totals.total_cost)}</td></tr>
+          <tr><th>IVA</th><td>{money(totals.iva)}</td></tr>
+          <tr><th>Margen real</th><td>{totals.real_margin.toFixed(2)}%</td></tr>
         </tbody>
       </table>
 
@@ -558,17 +651,8 @@ function AdminPanel() {
             </div>
           )}
 
-          {result.code && (
-            <div className="small">
-              Código: {result.code}
-            </div>
-          )}
-
-          {result.hint && (
-            <div className="small">
-              Hint: {result.hint}
-            </div>
-          )}
+          {result.code && <div className="small">Código: {result.code}</div>}
+          {result.hint && <div className="small">Hint: {result.hint}</div>}
 
           {result.key && (
             <>
@@ -583,4 +667,3 @@ function AdminPanel() {
     </div>
   );
 }
-```
