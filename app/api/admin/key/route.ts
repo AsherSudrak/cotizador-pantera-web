@@ -18,33 +18,30 @@ export async function POST(req: Request) {
     const startsAt = new Date();
     const expiresAt = new Date(startsAt.getTime() + hours * 60 * 60 * 1000);
 
-    let keyCode = generateAccessCode();
-    let insertResult = null;
+    const keyCode = generateAccessCode();
 
-    for (let i = 0; i < 5; i++) {
-      keyCode = generateAccessCode();
-      const { data, error } = await supabaseAdmin
-        .from("access_keys")
-        .insert({
-          key_code: keyCode,
-          label: body.label || "Llave diaria",
-          starts_at: startsAt.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          is_active: true,
-          max_uses: body.max_uses || null
-        })
-        .select("key_code, starts_at, expires_at")
-        .single();
+    const { data, error } = await supabaseAdmin
+      .from("access_keys")
+      .insert({
+        key_code: keyCode,
+        label: body.label || "Llave diaria",
+        starts_at: startsAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        is_active: true,
+        max_uses: body.max_uses || null
+      })
+      .select("key_code, starts_at, expires_at")
+      .single();
 
-      if (!error) {
-        insertResult = data;
-        break;
-      }
-    }
-
-    if (!insertResult) {
+    if (error) {
       return NextResponse.json(
-        { ok: false, message: "No se pudo crear la llave. Intenta de nuevo." },
+        {
+          ok: false,
+          message: "Error real de Supabase al crear la llave.",
+          details: error.message,
+          code: error.code,
+          hint: error.hint
+        },
         { status: 500 }
       );
     }
@@ -52,11 +49,15 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       message: "Llave generada correctamente.",
-      key: insertResult
+      key: data
     });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, message: error.message || "Error inesperado." },
+      {
+        ok: false,
+        message: "Error inesperado del servidor.",
+        details: error.message || String(error)
+      },
       { status: 500 }
     );
   }
