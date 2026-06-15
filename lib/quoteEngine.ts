@@ -1,3 +1,5 @@
+"use server";
+
 import { z } from "zod";
 import { supabaseAdmin } from "./supabaseAdmin";
 import {
@@ -36,22 +38,23 @@ export const QuoteInputSchema = z.object({
 });
 
 export type QuoteInput = z.infer<typeof QuoteInputSchema>;
+export type QuoteSection = "material" | "labor" | "sale_service" | "extra";
 
-type CatalogItem = {
-  item_name: string;
-  unit: string | null;
-  internal_cost: number;
-  sale_price: number | null;
-};
-
-type QuoteLine = {
-  section: "material" | "labor" | "sale_service" | "extra";
+export type QuoteLine = {
+  section: QuoteSection;
   item_name: string;
   quantity: number;
   unit: string;
   unit_cost: number;
   total_cost: number;
   visible_to_client?: boolean;
+};
+
+type CatalogItem = {
+  item_name: string;
+  unit: string | null;
+  internal_cost: number;
+  sale_price: number | null;
 };
 
 async function loadCatalog() {
@@ -79,10 +82,14 @@ function lineFromCatalog(
   section: QuoteLine["section"],
   itemName: string,
   quantity: number,
-  visible_to_client = false
+  visible_to_client = false,
+  preferSalePrice = false
 ): QuoteLine {
   const item = catalog.get(itemName);
-  const unitCost = Number(item?.internal_cost || 0);
+  const catalogCost = Number(item?.internal_cost || 0);
+  const catalogSale = item?.sale_price === null ? null : Number(item?.sale_price || 0);
+  const unitCost = preferSalePrice && catalogSale && catalogSale > 0 ? catalogSale : catalogCost;
+
   return {
     section,
     item_name: itemName,
@@ -111,6 +118,28 @@ function manualLine(
     total_cost: round2(quantity * unitCost),
     visible_to_client
   };
+}
+
+function cleanLines(lines: QuoteLine[]) {
+  return lines.filter((line) => {
+    const qty = Number(line.quantity || 0);
+    const total = Number(line.total_cost || 0);
+    const unitCost = Number(line.unit_cost || 0);
+    return qty > 0 && unitCost > 0 && total > 0;
+  });
+}
+
+function groupLines(lines: QuoteLine[]) {
+  return {
+    materials: lines.filter((line) => line.section === "material"),
+    labor: lines.filter((line) => line.section === "labor"),
+    sale_services: lines.filter((line) => line.section === "sale_service"),
+    extras: lines.filter((line) => line.section === "extra")
+  };
+}
+
+function sumLines(lines: QuoteLine[]) {
+  return round2(lines.reduce((sum, line) => sum + Number(line.total_cost || 0), 0));
 }
 
 function isSmallTwoViewAcrylicSuajada(input: QuoteInput) {
@@ -168,7 +197,7 @@ function addLighting(
 
 export async function calculateQuote(input: QuoteInput) {
   const catalog = await loadCatalog();
-  const lines: QuoteLine[] = [];
+  const rawLines: QuoteLine[] = [];
   const faceArea = input.width_m * input.height_m;
   const totalFaceArea = faceArea * input.views;
   const installFactor = INSTALL_FACTORS[input.installation_condition] || 1;
@@ -176,86 +205,93 @@ export async function calculateQuote(input: QuoteInput) {
   const calibrated = isSmallTwoViewAcrylicSuajada(input);
 
   if (isLonaBackBox(input)) {
-    addCommonStructure(lines, catalog, input, totalFaceArea);
+    addCommonStructure(rawLines, catalog, input, totalFaceArea);
 
-    // Regla especial:
-    // LONA BACK LIGHT IMPRESA = lona + impresión, vinil = 0.
-    // LONA BACK LIGHT ROTULADA = lona + vinil, impresión = 0.
-    lines.push(lineFromCatalog(catalog, "material", "LONA BACK LIGHT 2.00 x 50", totalFaceArea * 1.1));
+    rawLines.push(lineFromCatalog(catalog, "material", "LONA BACK LIGHT 2.00 x 50", totalFaceArea * 1.1));
 
     if (isBacklightPrinted(input)) {
       const printService = input.backlight_print_service || "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
-      lines.push(lineFromCatalog(catalog, "sale_service", printService, totalFaceArea, true));
+      rawLines.push(lineFromCatalog(catalog, "sale_service", printService, totalFaceArea, true, true));
     }
 
     if (isBacklightRotulada(input)) {
       const vinyl = input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB";
-      lines.push(lineFromCatalog(catalog, "material", vinyl, Math.ceil(totalFaceArea * 1.2 * 100) / 100, true));
+      rawLines.push(lineFromCatalog(catalog, "material", vinyl, Math.ceil(totalFaceArea * 1.2 * 100) / 100, true));
     }
 
-    addLighting(lines, catalog, input, totalFaceArea);
+    addLighting(rawLines, catalog, input, totalFaceArea);
 
     const fabricationHours = Math.max(10, totalFaceArea * 10);
     const installationHours = input.installation_included ? (totalFaceArea >= 40 ? 18 : 8) : 0;
 
-    lines.push(manualLine("labor", "FABRICACIÓN", fabricationHours, "Hora(s)", LABOR_HOUR_COST));
+    rawLines.push(manualLine("labor", "FABRICACIÓN", fabricationHours, "Hora(s)", LABOR_HOUR_COST));
     if (installationHours > 0) {
-      lines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, installationHours, "Hora(s)", LABOR_HOUR_COST * installFactor));
+      rawLines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, installationHours, "Hora(s)", LABOR_HOUR_COST * installFactor));
     }
   } else if (calibrated) {
-    lines.push(lineFromCatalog(catalog, "material", "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK", 0.75));
-    lines.push(lineFromCatalog(catalog, "material", "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22", 0.50));
-    lines.push(lineFromCatalog(catalog, "material", "TUBULAR PINTADO DE 1/2 X 1/2", 1.50));
-    lines.push(lineFromCatalog(catalog, "material", "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)", 2));
-    lines.push(lineFromCatalog(catalog, "material", "FUENTE DE PODER DE 60 W", 1));
-    lines.push(lineFromCatalog(catalog, "material", "CABLE DUPLEX TRANSPARENTE # 18 OK", 5));
-    lines.push(lineFromCatalog(catalog, "material", "THINNER STD", 2));
-    lines.push(lineFromCatalog(catalog, "material", "PINTURA ESMALTE ACRILICO S/RAPIDO COLOR NEGRO", 1));
-    lines.push(lineFromCatalog(catalog, "material", "SILVATRIM NEGRO", 6));
-    lines.push(lineFromCatalog(catalog, "material", "TAQUETE TX 3/8 X 3", 4));
-    lines.push(lineFromCatalog(catalog, "material", "ESTOPA", 0.25));
-    lines.push(lineFromCatalog(catalog, "material", "LIJA # 100", 1));
-    lines.push(lineFromCatalog(catalog, "material", "ADECRIL EXTRA ENVASE DE (960gr)", 0.10));
-    lines.push(lineFromCatalog(catalog, "material", "CLOROFORMO ENVASE DE (960gr)", 0.10));
-    lines.push(lineFromCatalog(catalog, "material", "PEGAMENTO P/ESPEJO GUNTHER (USAR)", 1));
-    lines.push(lineFromCatalog(catalog, "material", "JERINGA GRANDE 3ML", 1));
+    rawLines.push(lineFromCatalog(catalog, "material", "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK", 0.75));
+    rawLines.push(lineFromCatalog(catalog, "material", "LAMINA GALVANIZADA CALIBRE 26 3.05 X 1.22", 0.50));
+    rawLines.push(lineFromCatalog(catalog, "material", "TUBULAR PINTADO DE 1/2 X 1/2", 1.50));
+    rawLines.push(lineFromCatalog(catalog, "material", "LEDS BLANCOS LUMINOSIDAD NORMAL (C/20 PZ)", 2));
+    rawLines.push(lineFromCatalog(catalog, "material", "FUENTE DE PODER DE 60 W", 1));
+    rawLines.push(lineFromCatalog(catalog, "material", "CABLE DUPLEX TRANSPARENTE # 18 OK", 5));
+    rawLines.push(lineFromCatalog(catalog, "material", "THINNER STD", 2));
+    rawLines.push(lineFromCatalog(catalog, "material", "PINTURA ESMALTE ACRILICO S/RAPIDO COLOR NEGRO", 1));
+    rawLines.push(lineFromCatalog(catalog, "material", "SILVATRIM NEGRO", 6));
+    rawLines.push(lineFromCatalog(catalog, "material", "TAQUETE TX 3/8 X 3", 4));
+    rawLines.push(lineFromCatalog(catalog, "material", "ESTOPA", 0.25));
+    rawLines.push(lineFromCatalog(catalog, "material", "LIJA # 100", 1));
+    rawLines.push(lineFromCatalog(catalog, "material", "ADECRIL EXTRA ENVASE DE (960gr)", 0.10));
+    rawLines.push(lineFromCatalog(catalog, "material", "CLOROFORMO ENVASE DE (960gr)", 0.10));
+    rawLines.push(lineFromCatalog(catalog, "material", "PEGAMENTO P/ESPEJO GUNTHER (USAR)", 1));
+    rawLines.push(lineFromCatalog(catalog, "material", "JERINGA GRANDE 3ML", 1));
 
     if (input.face_material.toUpperCase().includes("ROTULAD")) {
-      lines.push(lineFromCatalog(catalog, "material", input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB", 0.61, true));
+      rawLines.push(lineFromCatalog(catalog, "material", input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB", 0.61, true));
     }
 
-    lines.push(manualLine("labor", "FABRICACIÓN", 18, "Hora(s)", LABOR_HOUR_COST));
-    lines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, 1.5, "Hora(s)", LABOR_HOUR_COST * installFactor));
-    lines.push(manualLine("labor", "TIEMPO MUERTO", 1.15, "Hora(s)", 60));
+    rawLines.push(manualLine("labor", "FABRICACIÓN", 18, "Hora(s)", LABOR_HOUR_COST));
+    rawLines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, 1.5, "Hora(s)", LABOR_HOUR_COST * installFactor));
+    rawLines.push(manualLine("labor", "TIEMPO MUERTO", 1.15, "Hora(s)", 60));
   } else {
     const acrylicSheets = input.face_material.toUpperCase().includes("ACRILICO")
       ? Math.ceil(((totalFaceArea * 1.15) / 2.9768) / 0.25) * 0.25
       : 0;
 
     if (acrylicSheets > 0) {
-      lines.push(lineFromCatalog(catalog, "material", "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK", acrylicSheets));
+      rawLines.push(lineFromCatalog(catalog, "material", "HOJA DE ACRILICO BLANCO LECHOSO 3MM - 1.22 X 2.44 OK", acrylicSheets));
     }
 
-    addCommonStructure(lines, catalog, input, totalFaceArea);
-    addLighting(lines, catalog, input, totalFaceArea);
+    addCommonStructure(rawLines, catalog, input, totalFaceArea);
+    addLighting(rawLines, catalog, input, totalFaceArea);
 
     if (input.face_material.toUpperCase().includes("ROTULAD")) {
-      lines.push(lineFromCatalog(catalog, "material", input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB", Math.ceil(totalFaceArea * 1.2 * 100) / 100, true));
+      rawLines.push(lineFromCatalog(catalog, "material", input.cut_vinyl || "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB", Math.ceil(totalFaceArea * 1.2 * 100) / 100, true));
     }
 
     const fabricationHours = Math.max(14, totalFaceArea * 12 * 1.35);
     const installationHours = input.installation_included ? (totalFaceArea >= 40 ? 18 : 8) : 0;
 
-    lines.push(manualLine("labor", "FABRICACIÓN", fabricationHours, "Hora(s)", LABOR_HOUR_COST));
+    rawLines.push(manualLine("labor", "FABRICACIÓN", fabricationHours, "Hora(s)", LABOR_HOUR_COST));
     if (installationHours > 0) {
-      lines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, installationHours, "Hora(s)", LABOR_HOUR_COST * installFactor));
+      rawLines.push(manualLine("labor", `INSTALACIÓN · ${input.installation_condition}`, installationHours, "Hora(s)", LABOR_HOUR_COST * installFactor));
     }
   }
 
-  lines.push(lineFromCatalog(catalog, "sale_service", input.design_service, 1, true));
-  lines.push(lineFromCatalog(catalog, "sale_service", `TRASLADO - ${input.transfer_zone}`, 1, true));
+  rawLines.push(lineFromCatalog(catalog, "sale_service", input.design_service, 1, true, true));
+  rawLines.push(lineFromCatalog(catalog, "sale_service", `TRASLADO - ${input.transfer_zone}`, 1, true, true));
 
-  const directCost = round2(lines.reduce((sum, line) => sum + line.total_cost, 0));
+  const lines = cleanLines(rawLines);
+  const grouped = groupLines(lines);
+
+  const sectionTotals = {
+    materials: sumLines(grouped.materials),
+    labor: sumLines(grouped.labor),
+    sale_services: sumLines(grouped.sale_services),
+    extras: sumLines(grouped.extras)
+  };
+
+  const directCost = round2(sectionTotals.materials + sectionTotals.labor + sectionTotals.sale_services + sectionTotals.extras);
   const indirectCost = round2(directCost * INDIRECT_RATE);
   const totalCost = ceilPeso(directCost + indirectCost);
   const targetPrice = priceForMargin(totalCost, MIN_REAL_MARGIN, input.commission);
@@ -264,6 +300,7 @@ export async function calculateQuote(input: QuoteInput) {
   const iva = round2(subtotal * IVA_RATE);
   const total = round2(subtotal + iva);
   const margin = realMargin(subtotal, totalCost, input.commission);
+  const utility = round2(subtotal - totalCost - subtotal * input.commission);
   const marginValidated = margin >= MIN_REAL_MARGIN;
 
   return {
@@ -279,10 +316,13 @@ export async function calculateQuote(input: QuoteInput) {
       `${input.installation_included ? `INCLUYE INSTALACIÓN ${input.installation_condition}.` : "SIN INSTALACIÓN."} ` +
       `TRASLADO: ${input.transfer_zone}. DISEÑO: ${input.design_service}.`,
     lines,
+    grouped_lines: grouped,
+    section_totals: sectionTotals,
     totals: {
       direct_cost: directCost,
       indirect_cost: indirectCost,
       total_cost: totalCost,
+      utility,
       subtotal_without_iva: subtotal,
       iva,
       total_with_iva: total,
