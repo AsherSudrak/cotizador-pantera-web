@@ -1,41 +1,15 @@
-# Unificar duplicados de catálogo
+# Auditoría de catálogo
 
-## Archivos
+Corre `auditoria_conteo_catalogo.sql` en Supabase.
 
-- `supabase_unificar_duplicados_catalogo.sql`
-  - Unifica duplicados en `cost_catalog`
-  - Actualiza `quote_recipes`
-  - Elimina recetas duplicadas exactas
-  - Crea respaldo antes de modificar
-  - Crea índice único para evitar duplicados futuros
+Te dirá:
 
-- `app/api/admin/cost-catalog/route.ts`
-  - Limpia nombres antes de guardar:
-    - Mayúsculas
-    - Espacios dobles
-    - Trim
+- Total real de conceptos en `cost_catalog`
+- Cuántos están activos e inactivos
+- Conteo por categoría
+- Si existen tablas de respaldo
+- Duplicados por nombre normalizado
+- Conceptos similares de vinil, lona, diseño, traslado y adicionales
+- Recetas duplicadas exactas
 
-## Cómo usar
-
-1. Reemplaza en GitHub:
-
-```text
-app/api/admin/cost-catalog/route.ts
-```
-
-2. Corre en Supabase:
-
-```text
-supabase_unificar_duplicados_catalogo.sql
-```
-
-3. Si al final el SELECT de duplicados sale vacío, quedó limpio.
-
-## Respaldo
-
-El SQL crea:
-
-```text
-cost_catalog_backup_before_dedupe
-quote_recipes_backup_before_dedupe
-```
+Si el resultado de duplicados sale vacío, el catálogo ya está unificado.
