@@ -27,6 +27,16 @@ const LONA_BACK_CARATULAS = [
 
 const CANTO_OPTIONS = ["LÁMINA GALVANIZADA CAL 26", "ALUMINIO"];
 
+const DESIGN_OPTIONS = [
+  "SIN DISEÑO",
+  "15MIN. DE DISEÑO GRAFICO",
+  "30MIN. DE DISEÑO GRAFICO",
+  "45MIN. DE DISEÑO GRAFICO",
+  "60MIN. DE DISEÑO GRAFICO",
+  "90MIN. DE DISEÑO GRAFICO",
+  "120MIN. DE DISEÑO GRAFICO"
+];
+
 const BACKLIGHT_PRINT_HP = "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
 
 const VINYL_OPTIONS = [
@@ -538,6 +548,13 @@ export default function HomePage() {
               ]} />
 
               <Select label="Traslado" value={form.transfer_zone} onChange={(v) => setForm({ ...form, transfer_zone: v })} options={["ZONA A", "ZONA B", "ZONA C", "ZONA D", "ZONA E"]} />
+
+              <Select
+                label="Diseño gráfico"
+                value={form.design_service}
+                onChange={(v) => setForm({ ...form, design_service: v })}
+                options={DESIGN_OPTIONS}
+              />
 
               <div className="status warn" style={{ background: "transparent", borderStyle: "solid", padding: 0, overflow: "hidden" }}>
                 <div style={{ background: "#2f333a", color: "white", fontWeight: 800, textAlign: "center", padding: "8px 10px" }}>
