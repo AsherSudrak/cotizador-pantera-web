@@ -78,6 +78,10 @@ const defaultForm = {
       custom_color: ""
     }
   ],
+  material_extra_amount: 0,
+  andamios_amount: 0,
+  descolgadas_count: 0,
+  descolgada_unit_cost: 0,
   extra_items: [
     {
       item_name: "",
@@ -261,7 +265,34 @@ export default function HomePage() {
           .filter((item: any) => item.vinyl_type && item.ml > 0)
       : [];
 
-    const extraItems = (form.extra_items || [])
+    const fixedExtraItems = [
+      Number(form.material_extra_amount || 0) > 0
+        ? {
+            item_name: "MATERIAL EXTRA",
+            quantity: 1,
+            unit: "SERVICIO",
+            unit_cost: Number(form.material_extra_amount || 0)
+          }
+        : null,
+      Number(form.andamios_amount || 0) > 0
+        ? {
+            item_name: "ANDAMIOS",
+            quantity: 1,
+            unit: "SERVICIO",
+            unit_cost: Number(form.andamios_amount || 0)
+          }
+        : null,
+      Number(form.descolgadas_count || 0) > 0 && Number(form.descolgada_unit_cost || 0) > 0
+        ? {
+            item_name: "NÚM. DE DESCOLGADAS",
+            quantity: Number(form.descolgadas_count || 0),
+            unit: "DESCOLGADA",
+            unit_cost: Number(form.descolgada_unit_cost || 0)
+          }
+        : null
+    ].filter(Boolean);
+
+    const manualExtraItems = (form.extra_items || [])
       .map((item: any) => ({
         item_name: item.item_name || "",
         quantity: Number(item.quantity || 0),
@@ -269,6 +300,8 @@ export default function HomePage() {
         unit_cost: Number(item.unit_cost || 0)
       }))
       .filter((item: any) => item.item_name && item.quantity > 0 && item.unit_cost > 0);
+
+    const extraItems = [...fixedExtraItems, ...manualExtraItems];
 
     return {
       ...form,
@@ -507,74 +540,56 @@ export default function HomePage() {
 
               <Select label="Traslado" value={form.transfer_zone} onChange={(v) => setForm({ ...form, transfer_zone: v })} options={["ZONA A", "ZONA B", "ZONA C", "ZONA D", "ZONA E"]} />
 
-              <div className="status warn" style={{ background: "transparent", borderStyle: "solid" }}>
-                <h3 style={{ marginTop: 0 }}>Extras manuales</h3>
+              <div className="status warn" style={{ background: "transparent", borderStyle: "solid", padding: 0, overflow: "hidden" }}>
+                <div style={{ background: "#2f333a", color: "white", fontWeight: 800, textAlign: "center", padding: "8px 10px" }}>
+                  ADICIONALES DEL PROYECTO
+                </div>
 
-                {(form.extra_items || []).map((item: any, index: number) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.6fr .6fr .6fr .7fr auto",
-                      gap: 8,
-                      alignItems: "end",
-                      marginBottom: 10
-                    }}
-                  >
-                    <div className="row" style={{ margin: 0 }}>
-                      <label>Concepto extra</label>
-                      <input
-                        value={item.item_name}
-                        onChange={(e) => updateExtraItem(index, "item_name", e.target.value.toUpperCase())}
-                        placeholder="Ej. ANDAMIOS / MATERIAL EXTRA"
-                      />
-                    </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", borderTop: "1px solid #222" }}>
+                  <label style={{ padding: "10px", fontWeight: 800, borderBottom: "1px solid #ddd" }}>MATERIAL EXTRA</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.material_extra_amount}
+                    onChange={(e) => setForm({ ...form, material_extra_amount: Number(e.target.value) })}
+                    style={{ textAlign: "right", border: 0, borderBottom: "1px solid #ddd", background: "#fff8e6", fontWeight: 700 }}
+                  />
 
-                    <div className="row" style={{ margin: 0 }}>
-                      <label>Cant.</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={item.quantity}
-                        onChange={(e) => updateExtraItem(index, "quantity", Number(e.target.value))}
-                      />
-                    </div>
+                  <label style={{ padding: "10px", fontWeight: 800, borderBottom: "1px solid #ddd" }}>ANDAMIOS</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.andamios_amount}
+                    onChange={(e) => setForm({ ...form, andamios_amount: Number(e.target.value) })}
+                    style={{ textAlign: "right", border: 0, borderBottom: "1px solid #ddd", background: "#fff8e6", fontWeight: 700 }}
+                  />
 
-                    <div className="row" style={{ margin: 0 }}>
-                      <label>Unidad</label>
-                      <input
-                        value={item.unit}
-                        onChange={(e) => updateExtraItem(index, "unit", e.target.value.toUpperCase())}
-                        placeholder="PIEZA"
-                      />
-                    </div>
+                  <label style={{ padding: "10px", fontWeight: 800, borderBottom: "1px solid #ddd" }}>NÚM. DE DESCOLGADAS</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={form.descolgadas_count}
+                    onChange={(e) => setForm({ ...form, descolgadas_count: Number(e.target.value) })}
+                    style={{ textAlign: "right", border: 0, borderBottom: "1px solid #ddd", background: "#fff8e6", fontWeight: 700 }}
+                  />
 
-                    <div className="row" style={{ margin: 0 }}>
-                      <label>Costo unit.</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={item.unit_cost}
-                        onChange={(e) => updateExtraItem(index, "unit_cost", Number(e.target.value))}
-                      />
-                    </div>
+                  <label style={{ padding: "10px", fontWeight: 800 }}>COSTO POR DESCOLGADA</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.descolgada_unit_cost}
+                    onChange={(e) => setForm({ ...form, descolgada_unit_cost: Number(e.target.value) })}
+                    style={{ textAlign: "right", border: 0, background: "#fff8e6", fontWeight: 700 }}
+                  />
+                </div>
 
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => removeExtraItem(index)}
-                      disabled={(form.extra_items || []).length <= 1}
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ))}
-
-                <button type="button" className="secondary" onClick={addExtraItem}>
-                  + Agregar extra
-                </button>
+                <div className="small" style={{ padding: "8px 10px" }}>
+                  Material extra y andamios se capturan como importe. Las descolgadas solo se cobran si capturas costo por descolgada.
+                </div>
               </div>
 
               <div className="row">
@@ -721,8 +736,7 @@ function QuoteResult({ quote }: { quote: any }) {
 
 function AdminPanel() {
   const [secret, setSecret] = useState("");
-  const [label, setLabel] = useState("Llave diaria");
-  const [hours, setHours] = useState(24);
+  const [label, setLabel] = useState("EQUIPO 1");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
@@ -733,7 +747,7 @@ function AdminPanel() {
       const res = await fetch("/api/admin/key", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ admin_secret: secret, label, hours })
+        body: JSON.stringify({ admin_secret: secret, label })
       });
 
       const data = await res.json();
@@ -748,7 +762,7 @@ function AdminPanel() {
   return (
     <div className="card">
       <h2>Administrador de llaves</h2>
-      <p className="small">Genera una llave D3RY para vendedores. La clave de administrador se define en Vercel como ADMIN_SECRET.</p>
+      <p className="small">Genera una llave D3RY por equipo. Si el equipo ya tiene una llave activa de hoy, se regresa la misma.</p>
 
       <div className="row">
         <label>Clave admin</label>
@@ -756,8 +770,13 @@ function AdminPanel() {
       </div>
 
       <div className="row">
-        <label>Etiqueta</label>
+        <label>Equipo / vendedor</label>
         <input value={label} onChange={(e) => setLabel(e.target.value)} />
+      </div>
+
+      <div className="row">
+        <label>Vigencia</label>
+        <input value="24 horas" readOnly />
       </div>
 
       <div className="row">
@@ -773,6 +792,7 @@ function AdminPanel() {
           {result.details && <div className="small" style={{ marginTop: 8 }}>Detalle: {result.details}</div>}
           {result.code && <div className="small">Código: {result.code}</div>}
           {result.hint && <div className="small">Hint: {result.hint}</div>}
+          {result.reused && <div className="small" style={{ marginTop: 8 }}>Se reutilizó la llave activa del mismo equipo.</div>}
           {result.key && (
             <>
               <h3 style={{ marginTop: 10 }}>{result.key.key_code}</h3>

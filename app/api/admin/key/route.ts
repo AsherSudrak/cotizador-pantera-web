@@ -14,23 +14,58 @@ export async function POST(req: Request) {
       );
     }
 
-    const hours = Number(body.hours || 24);
+    const label = String(body.label || "EQUIPO SIN NOMBRE").trim().toUpperCase();
+    const nowIso = new Date().toISOString();
+
+    // Si ya existe una llave activa para este equipo/vendedor, devuelve la misma.
+    const { data: existingKey, error: existingError } = await supabaseAdmin
+      .from("access_keys")
+      .select("key_code, starts_at, expires_at, label")
+      .eq("label", label)
+      .eq("is_active", true)
+      .gt("expires_at", nowIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Error al buscar llave activa del equipo.",
+          details: existingError.message,
+          code: existingError.code,
+          hint: existingError.hint
+        },
+        { status: 500 }
+      );
+    }
+
+    if (existingKey) {
+      return NextResponse.json({
+        ok: true,
+        reused: true,
+        message: "Este equipo ya tenía una llave activa. Se devolvió la misma.",
+        key: existingKey
+      });
+    }
+
+    const hours = 24;
     const startsAt = new Date();
     const expiresAt = new Date(startsAt.getTime() + hours * 60 * 60 * 1000);
-
     const keyCode = generateAccessCode();
 
     const { data, error } = await supabaseAdmin
       .from("access_keys")
       .insert({
         key_code: keyCode,
-        label: body.label || "Llave diaria",
+        label,
         starts_at: startsAt.toISOString(),
         expires_at: expiresAt.toISOString(),
         is_active: true,
-        max_uses: body.max_uses || null
+        max_uses: null
       })
-      .select("key_code, starts_at, expires_at")
+      .select("key_code, starts_at, expires_at, label")
       .single();
 
     if (error) {
@@ -48,7 +83,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: "Llave generada correctamente.",
+      reused: false,
+      message: "Llave diaria generada correctamente. Vigencia fija: 24 horas.",
       key: data
     });
   } catch (error: any) {
