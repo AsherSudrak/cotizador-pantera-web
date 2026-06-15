@@ -132,7 +132,7 @@ function getAutomaticFinish(faceMaterial: string) {
 }
 
 export default function HomePage() {
-  const [tab, setTab] = useState<"cotizador" | "admin">("cotizador");
+  const [tab, setTab] = useState<"cotizador" | "admin" | "costos">("cotizador");
   const [accessKey, setAccessKey] = useState("");
   const [accessStatus, setAccessStatus] = useState<any>(null);
   const [form, setForm] = useState<any>(defaultForm);
@@ -388,10 +388,13 @@ export default function HomePage() {
         <div className="tabs">
           <button className={`tab ${tab === "cotizador" ? "active" : ""}`} onClick={() => setTab("cotizador")}>Cotizador</button>
           <button className={`tab ${tab === "admin" ? "active" : ""}`} onClick={() => setTab("admin")}>Admin llaves</button>
+          <button className={`tab ${tab === "costos" ? "active" : ""}`} onClick={() => setTab("costos")}>Catálogo de precios</button>
         </div>
 
         {tab === "admin" ? (
           <AdminPanel />
+        ) : tab === "costos" ? (
+          <CostCatalogPanel />
         ) : (
           <div className="grid">
             <section className="card">
@@ -445,84 +448,129 @@ export default function HomePage() {
               )}
 
               {showCutVinyl && (
-                <div className="status warn" style={{ background: "transparent", borderStyle: "solid" }}>
-                  <h3 style={{ marginTop: 0 }}>Viniles por color</h3>
+                <div className="status warn" style={{ background: "transparent", borderStyle: "solid", padding: 0, overflow: "hidden" }}>
+                  <div style={{ background: "#2f333a", color: "white", fontWeight: 800, padding: "10px 12px" }}>
+                    VINILES POR COLOR
+                  </div>
 
-                  {(form.vinyl_items || []).map((item: any, index: number) => (
-                    <div
-                      key={index}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1.5fr .6fr .8fr .9fr auto",
-                        gap: 8,
-                        alignItems: "end",
-                        marginBottom: 10
-                      }}
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #444" }}>Tipo de vinil</th>
+                          <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #444", width: 90 }}>ML</th>
+                          <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #444", width: 150 }}>Color</th>
+                          <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #444", width: 180 }}>Otro color</th>
+                          <th style={{ padding: "8px", borderBottom: "1px solid #444", width: 90 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(form.vinyl_items || []).map((item: any, idx: number) => (
+                          <tr key={idx}>
+                            <td style={{ padding: "8px", borderBottom: "1px solid #333" }}>
+                              <select
+                                value={item.vinyl_type}
+                                onChange={(e) => {
+                                  const copy = [...form.vinyl_items];
+                                  copy[idx] = { ...copy[idx], vinyl_type: e.target.value };
+                                  setForm({ ...form, vinyl_items: copy });
+                                }}
+                                style={{ width: "100%" }}
+                              >
+                                {VINYL_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td style={{ padding: "8px", borderBottom: "1px solid #333" }}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.ml}
+                                onChange={(e) => {
+                                  const copy = [...form.vinyl_items];
+                                  copy[idx] = { ...copy[idx], ml: Number(e.target.value) };
+                                  setForm({ ...form, vinyl_items: copy });
+                                }}
+                                style={{ width: "100%", textAlign: "right" }}
+                              />
+                            </td>
+
+                            <td style={{ padding: "8px", borderBottom: "1px solid #333" }}>
+                              <select
+                                value={item.color}
+                                onChange={(e) => {
+                                  const copy = [...form.vinyl_items];
+                                  copy[idx] = { ...copy[idx], color: e.target.value };
+                                  setForm({ ...form, vinyl_items: copy });
+                                }}
+                                style={{ width: "100%" }}
+                              >
+                                {VINYL_COLOR_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td style={{ padding: "8px", borderBottom: "1px solid #333" }}>
+                              <input
+                                value={item.custom_color || ""}
+                                disabled={item.color !== "OTRO"}
+                                onChange={(e) => {
+                                  const copy = [...form.vinyl_items];
+                                  copy[idx] = { ...copy[idx], custom_color: e.target.value.toUpperCase() };
+                                  setForm({ ...form, vinyl_items: copy });
+                                }}
+                                placeholder={item.color === "OTRO" ? "Ej. ROSA" : ""}
+                                style={{ width: "100%" }}
+                              />
+                            </td>
+
+                            <td style={{ padding: "8px", borderBottom: "1px solid #333", textAlign: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const copy = [...form.vinyl_items];
+                                  copy.splice(idx, 1);
+                                  setForm({
+                                    ...form,
+                                    vinyl_items: copy.length
+                                      ? copy
+                                      : [{ vinyl_type: VINYL_OPTIONS[0], ml: 1, color: "NEGRO", custom_color: "" }]
+                                  });
+                                }}
+                              >
+                                Quitar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          vinyl_items: [
+                            ...(form.vinyl_items || []),
+                            { vinyl_type: VINYL_OPTIONS[0], ml: 1, color: "NEGRO", custom_color: "" }
+                          ]
+                        })
+                      }
                     >
-                      <div className="row" style={{ margin: 0 }}>
-                        <label>Tipo de vinil</label>
-                        <select
-                          value={item.vinyl_type}
-                          onChange={(e) => updateVinylItem(index, "vinyl_type", e.target.value)}
-                        >
-                          {VINYL_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      + Agregar otro color de vinil
+                    </button>
 
-                      <div className="row" style={{ margin: 0 }}>
-                        <label>ML</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={item.ml}
-                          onChange={(e) => updateVinylItem(index, "ml", Number(e.target.value))}
-                          placeholder="1.00"
-                        />
-                      </div>
-
-                      <div className="row" style={{ margin: 0 }}>
-                        <label>Color</label>
-                        <select
-                          value={item.color}
-                          onChange={(e) => updateVinylItem(index, "color", e.target.value)}
-                        >
-                          {VINYL_COLOR_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="row" style={{ margin: 0 }}>
-                        <label>Otro color</label>
-                        <input
-                          value={item.custom_color || ""}
-                          onChange={(e) => updateVinylItem(index, "custom_color", e.target.value.toUpperCase())}
-                          placeholder="Opcional"
-                          disabled={item.color !== "OTRO"}
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => removeVinylItem(index)}
-                        disabled={(form.vinyl_items || []).length <= 1}
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  ))}
-
-                  <button type="button" className="secondary" onClick={addVinylItem}>
-                    + Agregar otro color de vinil
-                  </button>
+                    <span className="small">
+                      Ejemplo: 1 ML negro + 2 ML rojo. Cada fila se manda completa al desglose.
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -737,6 +785,248 @@ function QuoteResult({ quote }: { quote: any }) {
     </div>
   );
 }
+
+
+function CostCatalogPanel() {
+  const [secret, setSecret] = useState("");
+  const [query, setQuery] = useState("");
+  const [rows, setRows] = useState<any[]>([]);
+  const [message, setMessage] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [newItem, setNewItem] = useState<any>({
+    item_name: "",
+    category: "MATERIALES",
+    unit: "PIEZA",
+    internal_cost: 0,
+    sale_price: 0,
+    notes: "",
+    is_active: true
+  });
+
+  async function loadCatalog() {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const params = new URLSearchParams();
+      params.set("admin_secret", secret);
+      if (query.trim()) params.set("q", query.trim());
+
+      const res = await fetch(`/api/admin/cost-catalog?${params.toString()}`);
+      const data = await res.json();
+
+      if (!data.ok) {
+        setMessage(data);
+        setRows([]);
+      } else {
+        setRows(data.items || []);
+        setMessage({ ok: true, message: `Catálogo cargado: ${data.items?.length || 0} conceptos.` });
+      }
+    } catch (error: any) {
+      setMessage({ ok: false, message: "Error al cargar catálogo.", details: error.message || String(error) });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateRow(index: number, field: string, value: any) {
+    const copy = [...rows];
+    copy[index] = { ...copy[index], [field]: value };
+    setRows(copy);
+  }
+
+  async function saveItem(item: any, isNew = false) {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const payload = {
+        admin_secret: secret,
+        item: {
+          item_name: String(item.item_name || "").trim().toUpperCase(),
+          category: item.category || "MATERIALES",
+          unit: item.unit || "PIEZA",
+          internal_cost: Number(item.internal_cost || 0),
+          sale_price: item.sale_price === "" || item.sale_price === null ? null : Number(item.sale_price || 0),
+          notes: item.notes || "",
+          is_active: item.is_active !== false
+        }
+      };
+
+      const res = await fetch("/api/admin/cost-catalog", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      setMessage(data);
+
+      if (data.ok) {
+        if (isNew) {
+          setNewItem({
+            item_name: "",
+            category: "MATERIALES",
+            unit: "PIEZA",
+            internal_cost: 0,
+            sale_price: 0,
+            notes: "",
+            is_active: true
+          });
+        }
+
+        await loadCatalog();
+      }
+    } catch (error: any) {
+      setMessage({ ok: false, message: "Error al guardar concepto.", details: error.message || String(error) });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const categories = ["MATERIALES", "MANO DE OBRA", "PRECIOS VENTA", "SERVICIOS", "TRASLADOS", "VINIL", "DISEÑO", "EXTRA"];
+
+  return (
+    <div className="card">
+      <h2>Catálogo de precios</h2>
+      <p className="small">
+        Aquí puedes actualizar costos y precios del cotizador sin tocar código. Usa la misma clave admin.
+      </p>
+
+      <div className="row">
+        <label>Clave admin</label>
+        <input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} />
+      </div>
+
+      <div className="row">
+        <label>Buscar concepto</label>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Ej. vinil, lona, diseño, andamios, fuente..."
+        />
+      </div>
+
+      <div className="actions">
+        <button onClick={loadCatalog} disabled={loading}>Cargar catálogo</button>
+      </div>
+
+      {message && (
+        <div className={message.ok ? "status ok" : "status bad"} style={{ marginTop: 14 }}>
+          <div>{message.message}</div>
+          {message.details && <div className="small" style={{ marginTop: 8 }}>Detalle: {message.details}</div>}
+          {message.code && <div className="small">Código: {message.code}</div>}
+          {message.hint && <div className="small">Hint: {message.hint}</div>}
+        </div>
+      )}
+
+      <div className="status warn" style={{ background: "transparent", borderStyle: "solid", padding: 0, overflow: "hidden", marginTop: 18 }}>
+        <div style={{ background: "#2f333a", color: "white", fontWeight: 800, padding: "10px 12px" }}>
+          AGREGAR NUEVO CONCEPTO
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+            <thead>
+              <tr>
+                <th style={{ padding: 8, textAlign: "left" }}>Concepto</th>
+                <th style={{ padding: 8, textAlign: "left", width: 160 }}>Categoría</th>
+                <th style={{ padding: 8, textAlign: "left", width: 100 }}>Unidad</th>
+                <th style={{ padding: 8, textAlign: "left", width: 130 }}>Costo</th>
+                <th style={{ padding: 8, textAlign: "left", width: 130 }}>Precio venta</th>
+                <th style={{ padding: 8, textAlign: "left" }}>Notas</th>
+                <th style={{ padding: 8, width: 90 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: 8 }}>
+                  <input value={newItem.item_name} onChange={(e) => setNewItem({ ...newItem, item_name: e.target.value })} placeholder="NOMBRE DEL MATERIAL O SERVICIO" />
+                </td>
+                <td style={{ padding: 8 }}>
+                  <select value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}>
+                    {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: 8 }}>
+                  <input value={newItem.unit} onChange={(e) => setNewItem({ ...newItem, unit: e.target.value.toUpperCase() })} />
+                </td>
+                <td style={{ padding: 8 }}>
+                  <input type="number" step="0.01" value={newItem.internal_cost} onChange={(e) => setNewItem({ ...newItem, internal_cost: Number(e.target.value) })} />
+                </td>
+                <td style={{ padding: 8 }}>
+                  <input type="number" step="0.01" value={newItem.sale_price} onChange={(e) => setNewItem({ ...newItem, sale_price: Number(e.target.value) })} />
+                </td>
+                <td style={{ padding: 8 }}>
+                  <input value={newItem.notes} onChange={(e) => setNewItem({ ...newItem, notes: e.target.value })} />
+                </td>
+                <td style={{ padding: 8 }}>
+                  <button onClick={() => saveItem(newItem, true)} disabled={loading}>Agregar</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3 style={{ marginTop: 22 }}>Conceptos existentes</h3>
+
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1050 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444" }}>Concepto</th>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444", width: 160 }}>Categoría</th>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444", width: 100 }}>Unidad</th>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444", width: 120 }}>Costo</th>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444", width: 120 }}>Precio venta</th>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444", width: 90 }}>Activo</th>
+              <th style={{ padding: 8, textAlign: "left", borderBottom: "1px solid #444" }}>Notas</th>
+              <th style={{ padding: 8, borderBottom: "1px solid #444", width: 100 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={row.item_name || idx}>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <input value={row.item_name || ""} onChange={(e) => updateRow(idx, "item_name", e.target.value)} />
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <select value={row.category || "MATERIALES"} onChange={(e) => updateRow(idx, "category", e.target.value)}>
+                    {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <input value={row.unit || ""} onChange={(e) => updateRow(idx, "unit", e.target.value.toUpperCase())} />
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <input type="number" step="0.01" value={row.internal_cost ?? 0} onChange={(e) => updateRow(idx, "internal_cost", Number(e.target.value))} />
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <input type="number" step="0.01" value={row.sale_price ?? 0} onChange={(e) => updateRow(idx, "sale_price", Number(e.target.value))} />
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333", textAlign: "center" }}>
+                  <input type="checkbox" checked={row.is_active !== false} onChange={(e) => updateRow(idx, "is_active", e.target.checked)} />
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <input value={row.notes || ""} onChange={(e) => updateRow(idx, "notes", e.target.value)} />
+                </td>
+                <td style={{ padding: 8, borderBottom: "1px solid #333" }}>
+                  <button onClick={() => saveItem(row)} disabled={loading}>Guardar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="small" style={{ marginTop: 14 }}>
+        Nota: en materiales se usa normalmente <b>Costo</b>. En servicios como diseño, traslado, vinil por ML, andamios y descolgadas puedes usar <b>Precio venta</b>.
+      </p>
+    </div>
+  );
+}
+
 
 function AdminPanel() {
   const [secret, setSecret] = useState("");
