@@ -29,7 +29,14 @@ const CANTO_OPTIONS = ["LÁMINA GALVANIZADA CAL 26", "ALUMINIO"];
 
 const BACKLIGHT_PRINT_HP = "IMPRESION DE LONA BACK LIGHT EN ALTA RESOLUCION (EN HP)";
 
-const VINYL_OPTIONS = ["VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB"];
+const VINYL_OPTIONS = [
+  "VINIL DE CORTE CON BASE 1.22 MTS CORTE AMPLIO",
+  "VINIL DE CORTE CON BASE 1.22 MTS CORTE DETALLADO",
+  "VINIL DE CORTE CON BASE 1.22 MTS CORTE SUPER DETALLADO",
+  "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
+  "VINIL DE CORTE CON BASE 60 CMS CORTE DETALLADO",
+  "VINIL DE CORTE CON BASE 60 CMS CORTE SUPER DETALLADO"
+];
 
 const defaultForm = {
   client_name: "CLIENTE NUEVO",
@@ -48,7 +55,8 @@ const defaultForm = {
   transfer_zone: "ZONA A",
   design_service: "15MIN. DE DISEÑO GRAFICO",
   backlight_print_service: BACKLIGHT_PRINT_HP,
-  cut_vinyl: "VINIL DE CORTE ARCLAD 61CM NEGRO 6C VNB",
+  cut_vinyl: "VINIL DE CORTE CON BASE 60 CMS CORTE AMPLIO",
+  vinyl_ml: 1,
   commission: 0,
   discount: 0
 };
@@ -137,6 +145,7 @@ export default function HomePage() {
       ...form,
       access_key: accessKey,
       cut_vinyl: showCutVinyl ? form.cut_vinyl : "",
+      vinyl_ml: showCutVinyl ? form.vinyl_ml : 0,
       backlight_print_service: showBacklightPrint ? BACKLIGHT_PRINT_HP : ""
     };
   }
@@ -261,7 +270,13 @@ export default function HomePage() {
               )}
 
               {showCutVinyl && (
-                <Select label="Vinil de corte / rotulado" value={form.cut_vinyl} onChange={(v) => setForm({ ...form, cut_vinyl: v })} options={VINYL_OPTIONS} />
+                <>
+                  <Select label="Vinil de corte / rotulado" value={form.cut_vinyl} onChange={(v) => setForm({ ...form, cut_vinyl: v })} options={VINYL_OPTIONS} />
+                  <div className="row">
+                    <label>ML de vinil</label>
+                    <input type="number" step="0.01" min="0" value={form.vinyl_ml} onChange={(e) => setForm({ ...form, vinyl_ml: Number(e.target.value) })} placeholder="Ej. 2.50" />
+                  </div>
+                </>
               )}
               <div className="row">
                 <label>Ancho × Alto</label>
