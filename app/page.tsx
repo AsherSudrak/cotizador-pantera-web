@@ -779,10 +779,7 @@ function AdminPanel() {
         <input value="24 horas" readOnly />
       </div>
 
-      <div className="row">
-        <label>Vigencia horas</label>
-        <input type="number" value={hours} onChange={(e) => setHours(Number(e.target.value))} />
-      </div>
+
 
       <button onClick={generateKey} disabled={loading}>Generar llave</button>
 
