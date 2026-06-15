@@ -7,11 +7,18 @@ function validateAdmin(secret: string) {
   return Boolean(process.env.ADMIN_SECRET && secret === process.env.ADMIN_SECRET);
 }
 
+function cleanCatalogName(value: string) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const adminSecret = url.searchParams.get("admin_secret") || "";
-    const q = (url.searchParams.get("q") || "").trim();
+    const q = cleanCatalogName(url.searchParams.get("q") || "");
 
     if (!validateAdmin(adminSecret)) {
       return NextResponse.json(
@@ -25,7 +32,7 @@ export async function GET(req: Request) {
       .select("item_name, category, unit, internal_cost, sale_price, notes, is_active, updated_at")
       .order("category", { ascending: true })
       .order("item_name", { ascending: true })
-      .limit(500);
+      .limit(700);
 
     if (q) {
       query = query.ilike("item_name", `%${q}%`);
@@ -75,7 +82,7 @@ export async function POST(req: Request) {
     }
 
     const item = body.item || {};
-    const itemName = String(item.item_name || "").trim().toUpperCase();
+    const itemName = cleanCatalogName(item.item_name || "");
 
     if (!itemName) {
       return NextResponse.json(
@@ -86,8 +93,8 @@ export async function POST(req: Request) {
 
     const payload = {
       item_name: itemName,
-      category: String(item.category || "MATERIALES").trim().toUpperCase(),
-      unit: String(item.unit || "PIEZA").trim(),
+      category: cleanCatalogName(item.category || "MATERIALES"),
+      unit: cleanCatalogName(item.unit || "PIEZA"),
       internal_cost: Number(item.internal_cost || 0),
       sale_price: item.sale_price === null || item.sale_price === "" ? null : Number(item.sale_price || 0),
       notes: item.notes || "",

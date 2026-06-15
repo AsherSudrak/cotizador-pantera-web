@@ -1,58 +1,41 @@
-# Cotizador Pantera Web
+# Unificar duplicados de catálogo
 
-Proyecto base para desplegar el cotizador de cajas de luz en Vercel con Supabase.
+## Archivos
 
-## Incluye
+- `supabase_unificar_duplicados_catalogo.sql`
+  - Unifica duplicados en `cost_catalog`
+  - Actualiza `quote_recipes`
+  - Elimina recetas duplicadas exactas
+  - Crea respaldo antes de modificar
+  - Crea índice único para evitar duplicados futuros
 
-- Acceso por llave de 24 horas.
-- Panel admin para generar llaves.
-- Cálculo protegido desde servidor.
-- Utilidad real mínima obligatoria del 40%.
-- Ruta calibrada para caja suajada pequeña a dos vistas con acrílico.
-- Catálogo de costos desde Supabase.
+- `app/api/admin/cost-catalog/route.ts`
+  - Limpia nombres antes de guardar:
+    - Mayúsculas
+    - Espacios dobles
+    - Trim
 
-## Variables de entorno en Vercel
+## Cómo usar
 
-Crear estas variables en Vercel:
+1. Reemplaza en GitHub:
 
-```env
-SUPABASE_URL=https://TU-PROYECTO.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY
-ADMIN_SECRET=TU_CLAVE_ADMIN_LARGA
-NEXT_PUBLIC_APP_NAME=Cotizador Pantera
+```text
+app/api/admin/cost-catalog/route.ts
 ```
 
-No subas `.env` a GitHub.
+2. Corre en Supabase:
 
-## Comandos locales
-
-```bash
-npm install
-npm run dev
+```text
+supabase_unificar_duplicados_catalogo.sql
 ```
 
-## Flujo
+3. Si al final el SELECT de duplicados sale vacío, quedó limpio.
 
-1. Admin entra a la pestaña "Admin llaves".
-2. Captura ADMIN_SECRET.
-3. Genera una llave de 24 horas.
-4. Vendedor captura la llave en Cotizador.
-5. Si la llave es válida, puede calcular precios.
-6. Si la llave vence, se bloquea.
+## Respaldo
 
-## Notas de seguridad
+El SQL crea:
 
-El cálculo se ejecuta del lado servidor en `/api/quote`, usando `SUPABASE_SERVICE_ROLE_KEY`.
-Nunca expongas `SUPABASE_SERVICE_ROLE_KEY` en el navegador ni en GitHub.
-
-## Siguiente fase
-
-Migrar todas las reglas del Excel:
-- cajas con lona back light;
-- acrílico impreso;
-- vinil impreso;
-- lámparas T8;
-- traslados por zona;
-- viáticos;
-- impresiones;
-- calibraciones adicionales.
+```text
+cost_catalog_backup_before_dedupe
+quote_recipes_backup_before_dedupe
+```
