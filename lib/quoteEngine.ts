@@ -590,13 +590,13 @@ export async function calculateQuote(input: QuoteInput) {
 
     if (itemName && quantity > 0 && unitCost > 0) {
       rawLines.push({
-        section: "extra",
+        section: "sale_service",
         item_name: itemName,
         quantity: round2(quantity),
         unit,
         unit_cost: round2(unitCost),
         total_cost: round2(quantity * unitCost),
-        visible_to_client: false
+        visible_to_client: true
       });
     }
   }

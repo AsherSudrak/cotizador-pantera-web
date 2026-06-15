@@ -79,9 +79,8 @@ const defaultForm = {
     }
   ],
   material_extra_amount: 0,
-  andamios_amount: 0,
+  andamios_count: 0,
   descolgadas_count: 0,
-  descolgada_unit_cost: 0,
   extra_items: [
     {
       item_name: "",
@@ -274,20 +273,20 @@ export default function HomePage() {
             unit_cost: Number(form.material_extra_amount || 0)
           }
         : null,
-      Number(form.andamios_amount || 0) > 0
+      Number(form.andamios_count || 0) > 0
         ? {
             item_name: "ANDAMIOS",
-            quantity: 1,
+            quantity: Number(form.andamios_count || 0),
             unit: "SERVICIO",
-            unit_cost: Number(form.andamios_amount || 0)
+            unit_cost: 150
           }
         : null,
-      Number(form.descolgadas_count || 0) > 0 && Number(form.descolgada_unit_cost || 0) > 0
+      Number(form.descolgadas_count || 0) > 0
         ? {
             item_name: "NÚM. DE DESCOLGADAS",
             quantity: Number(form.descolgadas_count || 0),
             unit: "DESCOLGADA",
-            unit_cost: Number(form.descolgada_unit_cost || 0)
+            unit_cost: 250
           }
         : null
     ].filter(Boolean);
@@ -556,39 +555,29 @@ export default function HomePage() {
                     style={{ textAlign: "right", border: 0, borderBottom: "1px solid #ddd", background: "#fff8e6", fontWeight: 700 }}
                   />
 
-                  <label style={{ padding: "10px", fontWeight: 800, borderBottom: "1px solid #ddd" }}>ANDAMIOS</label>
+                  <label style={{ padding: "10px", fontWeight: 800, borderBottom: "1px solid #ddd" }}>ANDAMIOS × $150</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     min="0"
-                    value={form.andamios_amount}
-                    onChange={(e) => setForm({ ...form, andamios_amount: Number(e.target.value) })}
+                    value={form.andamios_count}
+                    onChange={(e) => setForm({ ...form, andamios_count: Number(e.target.value) })}
                     style={{ textAlign: "right", border: 0, borderBottom: "1px solid #ddd", background: "#fff8e6", fontWeight: 700 }}
                   />
 
-                  <label style={{ padding: "10px", fontWeight: 800, borderBottom: "1px solid #ddd" }}>NÚM. DE DESCOLGADAS</label>
+                  <label style={{ padding: "10px", fontWeight: 800 }}>NÚM. DE DESCOLGADAS × $250</label>
                   <input
                     type="number"
                     step="1"
                     min="0"
                     value={form.descolgadas_count}
                     onChange={(e) => setForm({ ...form, descolgadas_count: Number(e.target.value) })}
-                    style={{ textAlign: "right", border: 0, borderBottom: "1px solid #ddd", background: "#fff8e6", fontWeight: 700 }}
-                  />
-
-                  <label style={{ padding: "10px", fontWeight: 800 }}>COSTO POR DESCOLGADA</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.descolgada_unit_cost}
-                    onChange={(e) => setForm({ ...form, descolgada_unit_cost: Number(e.target.value) })}
                     style={{ textAlign: "right", border: 0, background: "#fff8e6", fontWeight: 700 }}
                   />
                 </div>
 
                 <div className="small" style={{ padding: "8px 10px" }}>
-                  Material extra y andamios se capturan como importe. Las descolgadas solo se cobran si capturas costo por descolgada.
+                  Estos conceptos se agregan en PRECIOS VENTA / SERVICIOS.
                 </div>
               </div>
 
@@ -712,7 +701,6 @@ function QuoteResult({ quote }: { quote: any }) {
           <tr><th>Subtotal materiales</th><td>{money(sectionTotals.materials)}</td></tr>
           <tr><th>Subtotal mano de obra</th><td>{money(sectionTotals.labor)}</td></tr>
           <tr><th>Subtotal precios venta / servicios</th><td>{money(sectionTotals.sale_services)}</td></tr>
-          <tr><th>Subtotal extras</th><td>{money(sectionTotals.extras || 0)}</td></tr>
           <tr><th>Costo directo</th><td>{money(totals.direct_cost)}</td></tr>
           <tr><th>Gastos indirectos</th><td>{money(totals.indirect_cost)}</td></tr>
           <tr><th>Costo total</th><td>{money(totals.total_cost)}</td></tr>
@@ -729,7 +717,6 @@ function QuoteResult({ quote }: { quote: any }) {
       <SectionTable title="MATERIALES" lines={grouped.materials || []} subtotal={sectionTotals.materials || 0} />
       <SectionTable title="MANO DE OBRA" lines={grouped.labor || []} subtotal={sectionTotals.labor || 0} />
       <SectionTable title="PRECIOS VENTA / SERVICIOS" lines={grouped.sale_services || []} subtotal={sectionTotals.sale_services || 0} />
-      <SectionTable title="EXTRAS" lines={grouped.extras || []} subtotal={sectionTotals.extras || 0} />
     </div>
   );
 }
